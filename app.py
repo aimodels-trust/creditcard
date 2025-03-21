@@ -59,6 +59,11 @@ if st.button("Predict"):
             else:  # Numeric columns
                 input_data[col] = 0
 
+    # Replace unknown categories with 'Unknown'
+    input_data['SEX'] = input_data['SEX'].apply(lambda x: x if x in ['Male'] else 'Unknown')
+    input_data['EDUCATION'] = input_data['EDUCATION'].apply(lambda x: x if x in ['Graduate School', 'University', 'High School'] else 'Unknown')
+    input_data['MARRIAGE'] = input_data['MARRIAGE'].apply(lambda x: x if x in ['Married', 'Single'] else 'Unknown')
+
     # Reorder columns to match the expected order
     input_data = input_data[expected_columns]
 
