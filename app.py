@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import gdown
 import os
+import numpy as np
 
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1tdfigkbM6cfk7-Emyd2jueEcS2vsb5oP"
@@ -64,9 +65,9 @@ if st.button("Predict"):
     education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
     marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
 
-    input_data['SEX'] = input_data['SEX'].map(sex_mapping)
-    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping)
-    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping)
+    input_data['SEX'] = input_data['SEX'].map(sex_mapping).astype(int)
+    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping).astype(int)
+    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping).astype(int)
 
     # Reorder columns to match the expected order
     input_data = input_data[expected_columns]
