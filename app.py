@@ -7,8 +7,8 @@ import os
 # -------------------------
 # Step 1: Download the model from Google Drive
 # -------------------------
-
-model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
+# Step 1: Download the model from Google Drive
+model_url = "https://drive.google.com/uc?id=1lFMD3ZSGuj72cprZ6_EOoos68l2KZxvP"
 model_path = "credit_default_model.pkl"
 
 @st.cache_resource  # Caches model loading to avoid reloading on every interaction
