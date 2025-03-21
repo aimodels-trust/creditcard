@@ -32,44 +32,33 @@ pay_amt1 = st.number_input("Payment Amount", min_value=0)
 
 # Predict button
 if st.button("Predict"):
+    # Map string labels to numeric values
+    sex_mapping = {'Male': 1, 'Female': 2}
+    education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
+    marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
+
     # Prepare input data
     input_data = pd.DataFrame({
         'LIMIT_BAL': [limit_bal],
         'AGE': [age],
-        'SEX': [sex],
-        'EDUCATION': [education],
-        'MARRIAGE': [marriage],
+        'SEX': [sex_mapping[sex]],
+        'EDUCATION': [education_mapping[education]],
+        'MARRIAGE': [marriage_mapping[marriage]],
         'PAY_0': [pay_0],
-        'BILL_AMT1': [bill_amt1],
-        'PAY_AMT1': [pay_amt1]
+        'PAY_2': [0], 'PAY_3': [0], 'PAY_4': [0], 'PAY_5': [0], 'PAY_6': [0],
+        'BILL_AMT1': [bill_amt1], 'BILL_AMT2': [0], 'BILL_AMT3': [0],
+        'BILL_AMT4': [0], 'BILL_AMT5': [0], 'BILL_AMT6': [0],
+        'PAY_AMT1': [pay_amt1], 'PAY_AMT2': [0], 'PAY_AMT3': [0],
+        'PAY_AMT4': [0], 'PAY_AMT5': [0], 'PAY_AMT6': [0]
     })
 
-    # Define all expected columns (based on training data)
+    # Ensure input data matches model expectations
     expected_columns = [
         'LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE',
         'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
         'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
         'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
     ]
-
-    # Add missing columns with default values
-    for col in expected_columns:
-        if col not in input_data.columns:
-            if col in ['SEX', 'EDUCATION', 'MARRIAGE']:  # Categorical columns
-                input_data[col] = 0  # Default value for categorical columns
-            else:  # Numeric columns
-                input_data[col] = 0
-
-    # Map string labels to numeric values
-    sex_mapping = {'Male': 0, 'Female': 1}
-    education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
-    marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
-
-    input_data['SEX'] = input_data['SEX'].map(sex_mapping).astype(int)
-    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping).astype(int)
-    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping).astype(int)
-
-    # Reorder columns to match the expected order
     input_data = input_data[expected_columns]
 
     # Make prediction
