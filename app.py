@@ -15,10 +15,7 @@ gdrive_url = "https://drive.google.com/uc?id=1tdfigkbM6cfk7-Emyd2jueEcS2vsb5oP"
 if not os.path.exists(model_path):
     gdown.download(gdrive_url, model_path, quiet=False)
 
-# Load the trained model
-model = joblib.load(model_path)
-
-# Streamlit App
+# Define the app
 st.title("Credit Card Default Prediction")
 
 # Input fields
@@ -31,41 +28,45 @@ pay_0 = st.selectbox("Repayment Status", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
 bill_amt1 = st.number_input("Bill Amount", min_value=0)
 pay_amt1 = st.number_input("Payment Amount", min_value=0)
 
-# Mapping categorical values
-sex_map = {"Male": 1, "Female": 2}
-edu_map = {"Graduate School": 1, "University": 2, "High School": 3, "Others": 4}
-marriage_map = {"Married": 1, "Single": 2, "Others": 3}
-
 # Predict button
 if st.button("Predict"):
     # Prepare input data
     input_data = pd.DataFrame({
         'LIMIT_BAL': [limit_bal],
         'AGE': [age],
-        'SEX': [sex_map[sex]],
-        'EDUCATION': [edu_map[education]],
-        'MARRIAGE': [marriage_map[marriage]],
+        'SEX': [sex],
+        'EDUCATION': [education],
+        'MARRIAGE': [marriage],
         'PAY_0': [pay_0],
         'BILL_AMT1': [bill_amt1],
         'PAY_AMT1': [pay_amt1]
     })
-    
+
+    # Define all expected columns (based on training data)
+    expected_columns = [
+        'LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE',
+        'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
+        'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
+        'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
+    ]
+
+    # Add missing columns with default values
+    for col in expected_columns:
+        if col not in input_data.columns:
+            if col in ['SEX', 'EDUCATION', 'MARRIAGE']:  # Categorical columns
+                input_data[col] = 'Unknown'
+            else:  # Numeric columns
+                input_data[col] = 0
+
+    # Reorder columns to match the expected order
+    input_data = input_data[expected_columns]
+
     # Make prediction
     prediction = model.predict(input_data)[0]
     probability = model.predict_proba(input_data)[0][1]
-    
+
     # Display results
     if prediction == 1:
         st.error(f"Default Risk: High ({probability:.2%})")
     else:
         st.success(f"Default Risk: Low ({probability:.2%})")
-    
-    # SHAP explanation
-    explainer = shap.Explainer(model)
-    shap_values = explainer(input_data)
-    
-    st.subheader("Feature Contributions")
-    st.write("The following chart explains the contribution of each feature to the prediction:")
-    fig, ax = plt.subplots()
-    shap.waterfall_plot(shap_values[0])
-    st.pyplot(fig)
