@@ -1,47 +1,33 @@
 import streamlit as st
 import pandas as pd
 import joblib
+import gdown
+import os
 
-# Load the trained model
-model = joblib.load("credit_default_model.pkl")
+# Step 1: Download the model from Google Drive
+model_url = "https://drive.google.com/uc?id=1tdfigkbM6cfk7-Emyd2jueEcS2vsb5oP"
+model_path = "credit_default_model.pkl"
 
-# Define categorical mappings
-sex_mapping = {"Male": 1, "Female": 2}
-education_mapping = {"Graduate School": 1, "University": 2, "High School": 3, "Others": 4}
-marriage_mapping = {"Married": 1, "Single": 2, "Others": 3}
+# Check if the model file already exists; if not, download it
+if not os.path.exists(model_path):
+    print("Downloading model from Google Drive...")
+    gdown.download(model_url, model_path, quiet=False)
 
-# Streamlit App
+# Step 2: Load the trained model
+model = joblib.load(model_path)
+
+# Step 3: Define the app
 st.title("Credit Card Default Prediction")
 
 # Input fields
 limit_bal = st.number_input("Credit Limit", min_value=0)
 age = st.number_input("Age", min_value=18)
-sex = st.selectbox("Gender", list(sex_mapping.keys()))
-education = st.selectbox("Education", list(education_mapping.keys()))
-marriage = st.selectbox("Marital Status", list(marriage_mapping.keys()))
-pay_0 = st.selectbox("Repayment Status (Most Recent Month)", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-
-# Inputs for additional months
-bill_amt1 = st.number_input("Bill Amount (Most Recent Month)", min_value=0)
-bill_amt2 = st.number_input("Bill Amount (2nd Most Recent Month)", min_value=0)
-bill_amt3 = st.number_input("Bill Amount (3rd Most Recent Month)", min_value=0)
-bill_amt4 = st.number_input("Bill Amount (4th Most Recent Month)", min_value=0)
-bill_amt5 = st.number_input("Bill Amount (5th Most Recent Month)", min_value=0)
-bill_amt6 = st.number_input("Bill Amount (6th Most Recent Month)", min_value=0)
-
-pay_amt1 = st.number_input("Payment Amount (Most Recent Month)", min_value=0)
-pay_amt2 = st.number_input("Payment Amount (2nd Most Recent Month)", min_value=0)
-pay_amt3 = st.number_input("Payment Amount (3rd Most Recent Month)", min_value=0)
-pay_amt4 = st.number_input("Payment Amount (4th Most Recent Month)", min_value=0)
-pay_amt5 = st.number_input("Payment Amount (5th Most Recent Month)", min_value=0)
-pay_amt6 = st.number_input("Payment Amount (6th Most Recent Month)", min_value=0)
-
-# Inputs for PAY_2 to PAY_6
-pay_2 = st.selectbox("Repayment Status (2nd Most Recent Month)", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-pay_3 = st.selectbox("Repayment Status (3rd Most Recent Month)", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-pay_4 = st.selectbox("Repayment Status (4th Most Recent Month)", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-pay_5 = st.selectbox("Repayment Status (5th Most Recent Month)", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-pay_6 = st.selectbox("Repayment Status (6th Most Recent Month)", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+sex = st.selectbox("Gender", ["Male", "Female"])
+education = st.selectbox("Education", ["Graduate School", "University", "High School", "Others"])
+marriage = st.selectbox("Marital Status", ["Married", "Single", "Others"])
+pay_0 = st.selectbox("Repayment Status", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+bill_amt1 = st.number_input("Bill Amount", min_value=0)
+pay_amt1 = st.number_input("Payment Amount", min_value=0)
 
 # Predict button
 if st.button("Predict"):
@@ -49,28 +35,32 @@ if st.button("Predict"):
     input_data = pd.DataFrame({
         'LIMIT_BAL': [limit_bal],
         'AGE': [age],
-        'SEX': [sex_mapping[sex]],
-        'EDUCATION': [education_mapping[education]],
-        'MARRIAGE': [marriage_mapping[marriage]],
+        'SEX': [sex],
+        'EDUCATION': [education],
+        'MARRIAGE': [marriage],
         'PAY_0': [pay_0],
-        'PAY_2': [pay_2],
-        'PAY_3': [pay_3],
-        'PAY_4': [pay_4],
-        'PAY_5': [pay_5],
-        'PAY_6': [pay_6],
         'BILL_AMT1': [bill_amt1],
-        'BILL_AMT2': [bill_amt2],
-        'BILL_AMT3': [bill_amt3],
-        'BILL_AMT4': [bill_amt4],
-        'BILL_AMT5': [bill_amt5],
-        'BILL_AMT6': [bill_amt6],
-        'PAY_AMT1': [pay_amt1],
-        'PAY_AMT2': [pay_amt2],
-        'PAY_AMT3': [pay_amt3],
-        'PAY_AMT4': [pay_amt4],
-        'PAY_AMT5': [pay_amt5],
-        'PAY_AMT6': [pay_amt6],
+        'PAY_AMT1': [pay_amt1]
     })
+
+    # Define all expected columns (based on training data)
+    expected_columns = [
+        'LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE',
+        'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
+        'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
+        'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
+    ]
+
+    # Add missing columns with default values
+    for col in expected_columns:
+        if col not in input_data.columns:
+            if col in ['SEX', 'EDUCATION', 'MARRIAGE']:  # Categorical columns
+                input_data[col] = 'Unknown'
+            else:  # Numeric columns
+                input_data[col] = 0
+
+    # Reorder columns to match the expected order
+    input_data = input_data[expected_columns]
 
     # Make prediction
     prediction = model.predict(input_data)[0]
