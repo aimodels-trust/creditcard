@@ -64,6 +64,11 @@ if st.button("Predict"):
     prediction = model.predict(input_data)[0]
     probability = model.predict_proba(input_data)[0][1]
 
+    # Force 100% probability for extreme high-risk cases
+    if pay_0 >= 8 and bill_amt1 > 40000 and pay_amt1 == 0:
+        probability = 1.0
+        prediction = 1
+
     # Display results
     if prediction == 1:
         st.error(f"Default Risk: High ({probability:.2%})")
