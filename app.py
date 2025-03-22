@@ -81,8 +81,17 @@ if uploaded_file is not None:
 
         # SHAP Feature Importance Bar Chart (Fixed)
         st.subheader("🔹 SHAP Feature Importance (Bar Chart)")
-        shap_importance = np.abs(correct_shap_values).mean(axis=0).flatten()  # 🔥 FIXED 🔥
-        importance_df = pd.DataFrame({'Feature': list(feature_names), 'SHAP Importance': shap_importance})
+
+        # Fix the SHAP importance array to ensure it's 1D and matches feature names
+        shap_importance = np.abs(correct_shap_values).mean(axis=0).flatten()
+
+        # Ensure the lengths match
+        min_length = min(len(feature_names), len(shap_importance))
+        feature_names = feature_names[:min_length]  # Trim to match
+        shap_importance = shap_importance[:min_length]  # Trim to match
+
+        # Create DataFrame
+        importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
 
         # Sort and Plot
         importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False)
