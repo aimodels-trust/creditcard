@@ -92,9 +92,12 @@ elif app_mode == "📊 Feature Importance":
             # Ensure SHAP values are correctly indexed
             correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
 
-            # Fix Shape Mismatch by Ensuring Correct Feature Importance Computation
+            # **Fix Shape Mismatch & Convert SHAP Importance to 1D**
             try:
                 shap_importance = np.abs(correct_shap_values).mean(axis=0)
+
+                # Ensure it's 1D
+                shap_importance = np.squeeze(shap_importance)
 
                 # Ensure correct length
                 if len(shap_importance) > len(feature_names):
