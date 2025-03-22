@@ -83,6 +83,9 @@ if option == "Single Entry":
             st.success(f"Default Risk: Low ({probability:.2%})")
 
 elif option == "Batch Upload (CSV)":
+    st.write("**Expected CSV format:**")
+    st.write(pd.DataFrame(columns=expected_columns).head())
+    
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
