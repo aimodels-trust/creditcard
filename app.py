@@ -46,6 +46,8 @@ if option == "Single Entry":
             input_values[col] = education_mapping[st.selectbox("Education", list(education_mapping.keys()))]
         elif col == 'MARRIAGE':
             input_values[col] = marriage_mapping[st.selectbox("Marital Status", list(marriage_mapping.keys()))]
+        elif col.startswith("PAY_AMT"):
+            input_values[col] = st.number_input(f"{col}", min_value=0)
         elif col.startswith("PAY_"):
             input_values[col] = st.number_input(f"{col}", min_value=-2, max_value=9, step=1)
         else:
