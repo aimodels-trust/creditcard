@@ -4,7 +4,6 @@ import joblib
 import gdown
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1tdfigkbM6cfk7-Emyd2jueEcS2vsb5oP"
@@ -74,11 +73,8 @@ if st.button("Predict"):
     input_data = input_data[expected_columns]
 
     # Make prediction
+    prediction = model.predict(input_data)[0]
     probability = model.predict_proba(input_data)[0][1]
-
-    # Adjust threshold to 0.3
-    threshold = 0.3
-    prediction = 1 if probability >= threshold else 0
 
     # Display results
     if prediction == 1:
