@@ -7,21 +7,25 @@ import numpy as np
 import shap
 import matplotlib.pyplot as plt
 
+# Set page layout
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 
-# Download model if not present
+# Sidebar
+st.sidebar.title("Navigation")
+app_mode = st.sidebar.radio("Go to", ["🏠 Home", "📈 Predictions", "📊 Feature Importance"])
+
+# Step 1: Download the model from Google Drive (if not exists)
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
 
 if not os.path.exists(model_path):
-    st.info("Downloading model... Please wait ⏳")
-    gdown.download(model_url, model_path, quiet=False)
+    with st.spinner("Downloading model..."):
+        gdown.download(model_url, model_path, quiet=False)
 
-# Load trained model
+# Step 2: Load trained model
 model = joblib.load(model_path)
 
-st.title("🔍 Credit Default Prediction with Explainability")
-
+# Expected input features
 expected_columns = [
     'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
     'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
@@ -29,54 +33,116 @@ expected_columns = [
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
 
-# Upload CSV file
-uploaded_file = st.file_uploader("📂 Upload CSV file", type=["csv"])
+# ------------------------ HOME PAGE ------------------------
+if app_mode == "🏠 Home":
+    st.title("📌 Credit Default Prediction & Explainability")
+    st.write("""
+    Welcome to the **Credit Default Prediction** app!  
+    This tool predicts if a customer will default on their credit card payment and provides an **explanation using SHAP values**.
+    
+    **How to use:**  
+    1️⃣ Upload a CSV file with credit details.  
+    2️⃣ View predictions and probability of default.  
+    3️⃣ Explore feature importance and interpretability.  
+    """)
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
+# ------------------------ PREDICTIONS PAGE ------------------------
+elif app_mode == "📈 Predictions":
+    st.title("📈 Credit Default Predictions")
+    uploaded_file = st.file_uploader("📂 Upload CSV file", type=["csv"])
 
-    if df.shape[1] != len(expected_columns):
-        st.error("❌ Uploaded CSV does not match expected format.")
-    else:
-        preprocessor = model.named_steps['preprocessor']
-        classifier = model.named_steps['classifier']
-        
-        X_transformed = preprocessor.transform(df)
-        feature_names = preprocessor.get_feature_names_out()
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
-        predictions = classifier.predict(X_transformed)
-        probabilities = classifier.predict_proba(X_transformed)[:, 1]
+        if df.shape[1] != len(expected_columns):
+            st.error("Uploaded CSV does not match expected format. Please check the number of columns.")
+        else:
+            with st.spinner("Processing data..."):
+                # Extract preprocessor and classifier
+                preprocessor = model.named_steps['preprocessor']
+                classifier = model.named_steps['classifier']
+                
+                # Transform input data
+                X_transformed = preprocessor.transform(df)
 
-        df['Default_Risk'] = predictions
-        df['Probability'] = probabilities
+                # Get transformed feature names
+                feature_names = preprocessor.get_feature_names_out()
 
-        st.subheader("📊 Prediction Results")
-        st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+                # Make predictions
+                predictions = classifier.predict(X_transformed)
+                probabilities = classifier.predict_proba(X_transformed)[:, 1]
 
-        # Optimize SHAP Computation
-        st.subheader("📈 Feature Importance & Explainability")
+                df['Default_Risk'] = predictions
+                df['Probability'] = probabilities
 
-        sample_data = X_transformed[:20]  # Reduce sample size
+            # Display results
+            st.success("✅ Predictions Complete!")
+            st.write("### Prediction Results")
+            st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
 
-        @st.cache_resource
-        def compute_shap_values(sample_data):
-            explainer = shap.TreeExplainer(classifier, feature_perturbation="tree_path_dependent")
-            return explainer.shap_values(sample_data, approximate=True)
+# ------------------------ FEATURE IMPORTANCE PAGE ------------------------
+elif app_mode == "📊 Feature Importance":
+    st.title("📊 Feature Importance & Explainability")
 
-        shap_values = compute_shap_values(sample_data)
+    uploaded_file = st.file_uploader("📂 Upload CSV file for SHAP Analysis", type=["csv"])
 
-        correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
-        # Feature Importance Bar Chart
-        num_top_features = 10  # Limit to top 10 features
-        shap_importance = np.abs(correct_shap_values).mean(axis=0)
-        importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
-        importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(num_top_features)
+        if df.shape[1] != len(expected_columns):
+            st.error("Uploaded CSV does not match expected format. Please check the number of columns.")
+        else:
+            with st.spinner("Processing data..."):
+                # Extract preprocessor and classifier
+                preprocessor = model.named_steps['preprocessor']
+                classifier = model.named_steps['classifier']
+                
+                # Transform input data
+                X_transformed = preprocessor.transform(df)
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        plt.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="skyblue")
-        plt.xlabel("SHAP Importance")
-        plt.ylabel("Feature")
-        plt.title("Top 10 Important Features")
-        plt.gca().invert_yaxis()
-        st.pyplot(fig)
+                # Get transformed feature names
+                feature_names = preprocessor.get_feature_names_out()
+
+                # Use a small sample for faster SHAP computation
+                sample_data = X_transformed[:50]
+
+                # SHAP explainability
+                explainer = shap.TreeExplainer(classifier)
+                shap_values = explainer.shap_values(sample_data)
+
+            # Ensure SHAP values are correctly indexed
+            correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+
+            # Ensure correct shapes
+            if sample_data.shape[1] != correct_shap_values.shape[1]:
+                st.error(f"Shape mismatch: Features = {sample_data.shape[1]}, SHAP Values = {correct_shap_values.shape[1]}")
+            else:
+                # Compute SHAP feature importance
+                shap_importance = np.abs(correct_shap_values).mean(axis=0).flatten()
+                feature_names = np.array(feature_names).flatten()
+
+                if len(shap_importance) != len(feature_names):
+                    st.error("Feature importance computation failed due to shape mismatch.")
+                else:
+                    # Create feature importance dataframe
+                    importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
+                    importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
+
+                    # Display feature importance table
+                    st.write("### 🔥 Top 10 Most Important Features")
+                    st.dataframe(importance_df)
+
+                    # Plot feature importance
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
+                    ax.set_xlabel("SHAP Importance")
+                    ax.set_ylabel("Feature")
+                    ax.set_title("📊 Feature Importance")
+                    plt.gca().invert_yaxis()  # Invert to show highest importance at the top
+                    st.pyplot(fig)
+
+                    # SHAP Summary Plot
+                    st.write("### 📊 SHAP Summary Plot")
+                    shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
+                    plt.savefig("shap_summary.png", bbox_inches='tight')
+                    st.image("shap_summary.png")
