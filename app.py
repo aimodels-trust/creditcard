@@ -78,14 +78,19 @@ elif app_mode == "📊 Feature Importance":
             explainer = shap.TreeExplainer(classifier)
             shap_values = explainer.shap_values(sample_data)
 
+            # Ensure correct shape for SHAP values
             correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
             shap_importance = np.abs(correct_shap_values).mean(axis=0)
 
-            # Ensure correct dimensions
-            shap_importance = shap_importance[:len(feature_names)]
-            feature_names = feature_names[:len(shap_importance)]
+            # Convert to 1D array
+            shap_importance = np.array(shap_importance).flatten()
 
-            # Create feature importance DataFrame
+            # Ensure dimensions match
+            min_len = min(len(feature_names), len(shap_importance))
+            feature_names = feature_names[:min_len]
+            shap_importance = shap_importance[:min_len]
+
+            # Create DataFrame for feature importance
             importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
             importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
 
