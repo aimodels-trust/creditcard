@@ -9,15 +9,16 @@ import matplotlib.pyplot as plt
 
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
-model_path = "credit_default_model.pkl"
+model_path = "credit_default_model_fixed.pkl"
 
 # Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
     print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Step 2: Load the trained model
+# Step 2: Load the trained model using old scikit-learn and re-save with updated version
 model = joblib.load(model_path)
+joblib.dump(model, model_path)
 
 # Step 3: Define the app
 st.title("Credit Card Default Prediction with Explainability")
@@ -68,10 +69,22 @@ if uploaded_file is not None:
     st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
     
     # Explainability using SHAP
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(df)
-    
-    st.write("### Feature Importance")
-    shap.summary_plot(shap_values, df, show=False)
-    plt.savefig("shap_summary.png", bbox_inches='tight')
-    st.image("shap_summary.png")
+    try:
+        explainer = shap.Explainer(model, df)
+        shap_values = explainer(df)
+        
+        st.write("### Feature Importance")
+        shap.summary_plot(shap_values, df, show=False)
+        plt.savefig("shap_summary.png", bbox_inches='tight')
+        st.image("shap_summary.png")
+        
+        # Individual Prediction Explanations
+        st.write("### Individual Prediction Explanation")
+        for i in range(min(3, len(df))):  # Show SHAP force plot for first few records
+            st.write(f"Explanation for Record {i+1}:")
+            shap.force_plot(explainer.expected_value, shap_values[i].values, df.iloc[i, :], matplotlib=True)
+            plt.savefig(f"shap_force_{i}.png", bbox_inches='tight')
+            st.image(f"shap_force_{i}.png")
+    except Exception as e:
+        st.write("SHAP explanation is not available for this model type.")
+        st.write(str(e))
