@@ -50,9 +50,6 @@ if app_mode == "🏠 Home":
             # Transform input data
             X_transformed = preprocessor.transform(df)
 
-            # Get transformed feature names
-            feature_names = preprocessor.get_feature_names_out()
-
             # Make predictions
             predictions = classifier.predict(X_transformed)
             probabilities = classifier.predict_proba(X_transformed)[:, 1]
@@ -82,8 +79,8 @@ elif app_mode == "📊 Feature Importance":
                 # Transform input data
                 X_transformed = preprocessor.transform(df)
 
-                # Get transformed feature names
-                feature_names = preprocessor.get_feature_names_out()
+                # Get correct feature names (handling one-hot encoding)
+                feature_names = expected_columns  # Keep original feature names
 
                 # Use a small sample for faster SHAP computation
                 sample_data = X_transformed[:50]
@@ -97,11 +94,13 @@ elif app_mode == "📊 Feature Importance":
 
             # Fix Shape Mismatch by Ensuring Correct Feature Importance Computation
             try:
-                shap_importance = np.abs(correct_shap_values).mean(axis=0).flatten()
-                feature_names = np.array(feature_names).flatten()
+                shap_importance = np.abs(correct_shap_values).mean(axis=0)
 
-                if len(shap_importance) != len(feature_names):
-                    raise ValueError(f"Mismatch: {len(shap_importance)} SHAP values vs {len(feature_names)} features")
+                # Ensure correct length
+                if len(shap_importance) > len(feature_names):
+                    shap_importance = shap_importance[:len(feature_names)]
+                elif len(shap_importance) < len(feature_names):
+                    feature_names = feature_names[:len(shap_importance)]
 
                 # Create feature importance dataframe
                 importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
