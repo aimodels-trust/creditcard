@@ -4,6 +4,8 @@ import joblib
 import gdown
 import os
 import numpy as np
+import shap
+import matplotlib.pyplot as plt
 
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
@@ -18,7 +20,7 @@ if not os.path.exists(model_path):
 model = joblib.load(model_path)
 
 # Step 3: Define the app
-st.title("Credit Card Default Prediction")
+st.title("Credit Card Default Prediction with Explainability")
 
 # Define expected columns
 expected_columns = [
@@ -64,3 +66,12 @@ if uploaded_file is not None:
     st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
     
     st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
+    
+    # Explainability using SHAP
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(df)
+    
+    st.write("### Feature Importance")
+    shap.summary_plot(shap_values, df, show=False)
+    plt.savefig("shap_summary.png", bbox_inches='tight')
+    st.image("shap_summary.png")
