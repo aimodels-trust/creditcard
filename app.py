@@ -6,6 +6,7 @@ import os
 import numpy as np
 import shap
 import matplotlib.pyplot as plt
+from sklearn.pipeline import Pipeline
 
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
@@ -15,7 +16,11 @@ if not os.path.exists(model_path):
     gdown.download(model_url, model_path, quiet=False)
 
 # Step 2: Load the trained model
-model = joblib.load(model_path)
+@st.cache_resource
+def load_model():
+    return joblib.load(model_path)
+
+model = load_model()
 
 # Step 3: Define Streamlit app
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
@@ -33,9 +38,49 @@ expected_columns = [
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
 
-if app_mode == "🏠 Home":
-    st.write("### Upload a CSV file for predictions")
+# Data privacy assurance
+st.sidebar.markdown("### Data Privacy")
+st.sidebar.write("Your data is not stored or shared. All computations are done locally on your device.")
 
+# Model transparency
+st.sidebar.markdown("### About the Model")
+st.sidebar.write("This model predicts the likelihood of credit card default based on user-provided data. It was trained on a dataset of credit card users and uses SHAP for explainability.")
+
+if app_mode == "🏠 Home":
+    st.write("### Predict Credit Card Default")
+
+    # Manual input form
+    st.write("#### Enter Your Details")
+    with st.form("user_input_form"):
+        limit_bal = st.number_input("Credit Limit (LIMIT_BAL)", min_value=0)
+        age = st.number_input("Age (AGE)", min_value=18, max_value=100)
+        sex = st.selectbox("Sex (SEX)", options=[1, 2], format_func=lambda x: "Male" if x == 1 else "Female")
+        education = st.selectbox("Education (EDUCATION)", options=[1, 2, 3, 4], format_func=lambda x: {1: "Graduate", 2: "University", 3: "High School", 4: "Others"}[x])
+        marriage = st.selectbox("Marriage (MARRIAGE)", options=[1, 2, 3], format_func=lambda x: {1: "Married", 2: "Single", 3: "Others"}[x])
+        submitted = st.form_submit_button("Predict")
+
+    if submitted:
+        user_data = pd.DataFrame([[limit_bal, sex, education, marriage, age] + [0] * 18], columns=expected_columns)
+        preprocessor = model.named_steps['preprocessor']
+        classifier = model.named_steps['classifier']
+        X_transformed = preprocessor.transform(user_data)
+        prediction = classifier.predict(X_transformed)
+        probability = classifier.predict_proba(X_transformed)[:, 1]
+
+        st.write("### Prediction Result")
+        st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
+        st.write(f"Probability of Default: {probability[0]:.2f}")
+
+        # Local SHAP explanation
+        explainer = shap.TreeExplainer(classifier)
+        shap_values = explainer.shap_values(X_transformed)
+        st.write("#### Local Explanation (SHAP)")
+        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data.iloc[0, :], matplotlib=True, show=False)
+        st.pyplot(bbox_inches='tight')
+        plt.clf()
+
+    # CSV upload functionality
+    st.write("#### Upload a CSV File for Predictions")
     uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
 
     if uploaded_file:
@@ -46,7 +91,6 @@ if app_mode == "🏠 Home":
         else:
             preprocessor = model.named_steps['preprocessor']
             classifier = model.named_steps['classifier']
-
             X_transformed = preprocessor.transform(df)
             predictions = classifier.predict(X_transformed)
             probabilities = classifier.predict_proba(X_transformed)[:, 1]
