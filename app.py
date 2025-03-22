@@ -4,24 +4,21 @@ import joblib
 import gdown
 import os
 import numpy as np
-import sklearn
 
-# Step 1: Download the model from Google Drive if not present
-model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
+# Step 1: Download the model from Google Drive
+model_url = "https://drive.google.com/uc?id=1lFMD3ZSGuj72cprZ6_EOoos68l2KZxvP"
 model_path = "credit_default_model.pkl"
 
+# Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
-    st.write("Downloading model from Google Drive...")
+    st.info("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Step 2: Load the trained model with error handling
+# Step 2: Load the trained model
 try:
     model = joblib.load(model_path)
-except ValueError as e:
-    st.error(f"Error loading model: {e}")
-    st.stop()  # Stop execution if model loading fails
 except Exception as e:
-    st.error(f"Unexpected error: {e}")
+    st.error(f"Error loading model: {e}")
     st.stop()
 
 # Step 3: Define the app
