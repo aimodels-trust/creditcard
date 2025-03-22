@@ -8,6 +8,9 @@ import shap
 import matplotlib.pyplot as plt
 from sklearn.pipeline import Pipeline
 
+# Step 0: Set page configuration (must be the first Streamlit command)
+st.set_page_config(page_title="Credit Default Prediction", layout="wide")
+
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
@@ -23,7 +26,6 @@ def load_model():
 model = load_model()
 
 # Step 3: Define Streamlit app
-st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 st.title("💳 Credit Card Default Prediction with Explainability")
 
 # Sidebar Navigation
