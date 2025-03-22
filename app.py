@@ -16,10 +16,14 @@ if not os.path.exists(model_path):
     print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Step 2: Load the trained model
-model = joblib.load(model_path)
+# Step 2: Load the trained model (Pipeline)
+pipeline = joblib.load(model_path)
 
-# Step 3: Define the app
+# Step 3: Extract Classifier for SHAP
+preprocessor = pipeline.named_steps['preprocessor']
+model = pipeline.named_steps['classifier']
+
+# Step 4: Define the app
 st.title("Credit Card Default Prediction with Explainability")
 
 # Define expected columns
@@ -32,7 +36,6 @@ expected_columns = [
 
 # Explanation of variables
 st.write("### Feature Explanation")
-st.write("This study used the following 23 variables:")
 st.write("""
 - **LIMIT_BAL**: Amount of given credit (includes individual and family credit)
 - **SEX**: Gender (1 = Male, 2 = Female)
@@ -66,9 +69,12 @@ if uploaded_file is not None:
         if df.shape[1] != 23:  # Model expects 23 input features
             st.error(f"Uploaded CSV has {df.shape[1]} features, but the model expects 23.")
         else:
+            # Apply preprocessing before making predictions
+            df_transformed = preprocessor.transform(df)
+            
             # Make predictions
-            predictions = model.predict(df)
-            probabilities = model.predict_proba(df)[:, 1]
+            predictions = model.predict(df_transformed)
+            probabilities = model.predict_proba(df_transformed)[:, 1]
 
             df['Default_Risk'] = predictions
             df['Probability'] = probabilities
@@ -82,12 +88,14 @@ if uploaded_file is not None:
 
             # Explainability using SHAP
             st.write("### Feature Importance")
-            explainer = shap.Explainer(model)  # Universal SHAP explainer
-            shap_values = explainer(df)
+            
+            # Use SHAP with transformed features
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(df_transformed)
 
             # SHAP Summary Plot
             fig, ax = plt.subplots(figsize=(10, 5))
-            shap.summary_plot(shap_values, df, show=False)
+            shap.summary_plot(shap_values, df_transformed, show=False)
             st.pyplot(fig)
 
     except Exception as e:
