@@ -16,17 +16,13 @@ if not os.path.exists(model_path):
     print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Step 2: Load the trained model (Pipeline)
-pipeline = joblib.load(model_path)
+# Step 2: Load the trained model
+model = joblib.load(model_path)
 
-# Step 3: Extract Classifier for SHAP
-preprocessor = pipeline.named_steps['preprocessor']
-model = pipeline.named_steps['classifier']
-
-# Step 4: Define the app
+# Step 3: Define the app
 st.title("Credit Card Default Prediction with Explainability")
 
-# Define expected columns
+# Define expected columns (excluding default payment status)
 expected_columns = [
     'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
     'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
@@ -36,6 +32,7 @@ expected_columns = [
 
 # Explanation of variables
 st.write("### Feature Explanation")
+st.write("This study used the following 23 variables:")
 st.write("""
 - **LIMIT_BAL**: Amount of given credit (includes individual and family credit)
 - **SEX**: Gender (1 = Male, 2 = Female)
@@ -54,49 +51,27 @@ st.write("**Expected CSV format:**")
 st.write(pd.DataFrame(columns=expected_columns).head())
 
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-
 if uploaded_file is not None:
-    try:
-        # Load CSV
-        df = pd.read_csv(uploaded_file, header=None)
-        df.columns = expected_columns  # Assign expected column names
-
-        # Ensure only input features (exclude target variable if present)
-        if 'default payment status' in df.columns:
-            df = df.drop(columns=['default payment status'])
-
-        # Ensure feature count matches the model's expectation
-        if df.shape[1] != 23:  # Model expects 23 input features
-            st.error(f"Uploaded CSV has {df.shape[1]} features, but the model expects 23.")
-        else:
-            # Apply preprocessing before making predictions
-            df_transformed = preprocessor.transform(df)
-            
-            # Make predictions
-            predictions = model.predict(df_transformed)
-            probabilities = model.predict_proba(df_transformed)[:, 1]
-
-            df['Default_Risk'] = predictions
-            df['Probability'] = probabilities
-
-            # Display results
-            st.write("### Prediction Results")
-            st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
-
-            # Download option
-            st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
-
-            # Explainability using SHAP
-            st.write("### Feature Importance")
-            
-            # Use SHAP with transformed features
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(df_transformed)
-
-            # SHAP Summary Plot
-            fig, ax = plt.subplots(figsize=(10, 5))
-            shap.summary_plot(shap_values, df_transformed, show=False)
-            st.pyplot(fig)
-
-    except Exception as e:
-        st.error(f"Error processing the file: {e}")
+    df = pd.read_csv(uploaded_file, header=None)
+    df.columns = expected_columns  # Excluding target variable
+    
+    # Make batch predictions
+    predictions = model.predict(df)
+    probabilities = model.predict_proba(df)[:, 1]
+    df['Default_Risk'] = predictions
+    df['Probability'] = probabilities
+    
+    # Improved Interface with XAI
+    st.write("### Prediction Results")
+    st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+    
+    st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
+    
+    # Explainability using SHAP (Optimized for Performance)
+    st.write("### Feature Importance")
+    explainer = shap.Explainer(model)
+    shap_values = explainer(df[:500])  # Limit to first 500 rows for faster processing
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    shap.plots.bar(shap_values, show=False)
+    st.pyplot(fig)
