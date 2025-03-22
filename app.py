@@ -112,11 +112,19 @@ if app_mode == "🏠 Home":
 
         # Check if shap_values is a list (binary classification)
         if isinstance(shap_values, list):
-            shap_values = shap_values[1]  # Use positive class for binary classification
+            # For binary classification, use shap_values[1] for the positive class
+            shap_values = shap_values[1]
+            base_value = explainer.expected_value[1]
+        else:
+            # For non-binary cases, use shap_values directly
+            base_value = explainer.expected_value
 
+        # Ensure the input data is in the correct format
+        features = user_data.iloc[0, :]  # Extract the first row of user data
+
+        # Generate the SHAP force plot
         st.write("#### Local Explanation (SHAP)")
-        shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
-                        shap_values, user_data.iloc[0, :], matplotlib=True, show=False)
+        shap.force_plot(base_value, shap_values, features, matplotlib=True, show=False)
         st.pyplot(bbox_inches='tight')
         plt.clf()
 
