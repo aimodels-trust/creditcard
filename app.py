@@ -81,7 +81,7 @@ if uploaded_file is not None:
 
         # SHAP Feature Importance Bar Chart (Fixed)
         st.subheader("🔹 SHAP Feature Importance (Bar Chart)")
-        shap_importance = np.abs(correct_shap_values).mean(axis=0)
+        shap_importance = np.abs(correct_shap_values).mean(axis=0).flatten()  # 🔥 FIXED 🔥
         importance_df = pd.DataFrame({'Feature': list(feature_names), 'SHAP Importance': shap_importance})
 
         # Sort and Plot
