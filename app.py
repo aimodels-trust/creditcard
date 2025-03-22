@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
 
-# Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
     print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
@@ -19,10 +18,10 @@ if not os.path.exists(model_path):
 # Step 2: Load the trained model
 model = joblib.load(model_path)
 
-# Step 3: Define the Streamlit app
+# Step 3: Define Streamlit app
 st.title("Credit Card Default Prediction with Explainability")
 
-# Define expected columns
+# Define expected input features
 expected_columns = [
     'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
     'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
@@ -30,14 +29,12 @@ expected_columns = [
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
 
-# Batch Upload Section
-st.write("## Batch Upload (CSV)")
+# Upload CSV file
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
-    # Ensure correct number of columns
     if df.shape[1] != len(expected_columns):
         st.error("Uploaded CSV does not match expected format. Please check the number of columns.")
     else:
@@ -48,10 +45,10 @@ if uploaded_file is not None:
         # Transform input data
         X_transformed = preprocessor.transform(df)
 
-        # Get transformed feature names (important for SHAP)
+        # Get correct transformed feature names
         feature_names = preprocessor.get_feature_names_out()
 
-        # Make batch predictions
+        # Make predictions
         predictions = classifier.predict(X_transformed)
         probabilities = classifier.predict_proba(X_transformed)[:, 1]
 
@@ -64,12 +61,12 @@ if uploaded_file is not None:
         # SHAP Explainability
         st.write("### Feature Importance")
 
-        # Use a small sample for efficiency
+        # Use a small sample (to speed up SHAP)
         sample_data = X_transformed[:50]
 
-        # Define KernelExplainer (works with any model)
-        explainer = shap.KernelExplainer(classifier.predict_proba, sample_data)
-        shap_values = explainer.shap_values(sample_data, nsamples=100)
+        # Use SHAP TreeExplainer (since it's a RandomForest model)
+        explainer = shap.TreeExplainer(classifier)
+        shap_values = explainer.shap_values(sample_data)
 
         # SHAP summary plot with correct feature names
         shap.summary_plot(shap_values[1], sample_data, feature_names=feature_names, show=False)
