@@ -13,7 +13,7 @@ model_path = "credit_default_model.pkl"
 
 # Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
-    st.write("Downloading model from Google Drive...")
+    print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
 # Step 2: Load the trained model
@@ -32,20 +32,21 @@ expected_columns = [
 
 # Explanation of variables
 st.write("### Feature Explanation")
-st.markdown("""
-- **LIMIT_BAL**: Amount of given credit (individual & family credit)
+st.write("This study used the following 23 variables:")
+st.write("""
+- **LIMIT_BAL**: Amount of given credit (includes individual and family credit)
 - **SEX**: Gender (1 = Male, 2 = Female)
 - **EDUCATION**: (1 = Graduate School, 2 = University, 3 = High School, 4 = Others)
 - **MARRIAGE**: Marital status (1 = Married, 2 = Single, 3 = Others)
 - **AGE**: Age of the individual
 - **PAY_0 to PAY_6**: Past monthly payment records (-1 = Pay duly, 1-9 = Months delayed)
-- **BILL_AMT1 to BILL_AMT6**: Bill statements from April to September 2005
+- **BILL_AMT1 to BILL_AMT6**: Amount of bill statement from April to September 2005
 - **PAY_AMT1 to PAY_AMT6**: Amount of previous payments from April to September 2005
 """)
 
 # Batch Upload Section
 st.write("## Batch Upload (CSV)")
-st.write("Upload a CSV file with customer details in the expected format.")
+st.write("Upload a CSV file containing customer details in the expected format.")
 st.write("**Expected CSV format:**")
 st.write(pd.DataFrame(columns=expected_columns).head())
 
@@ -53,39 +54,41 @@ uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
 if uploaded_file is not None:
     try:
+        # Load CSV
         df = pd.read_csv(uploaded_file, header=None)
-        df.columns = expected_columns
+        df.columns = expected_columns  # Assign expected column names
 
-        # Convert DataFrame to NumPy array (for pipeline compatibility)
-        df_values = df.to_numpy()
+        # Ensure only input features (exclude target variable if present)
+        if 'default payment status' in df.columns:
+            df = df.drop(columns=['default payment status'])
 
-        # Make batch predictions
-        predictions = model.predict(df_values)
-        probabilities = model.predict_proba(df_values)[:, 1]
-        df['Default_Risk'] = predictions
-        df['Probability'] = probabilities
+        # Ensure feature count matches the model's expectation
+        if df.shape[1] != 23:  # Model expects 23 input features
+            st.error(f"Uploaded CSV has {df.shape[1]} features, but the model expects 23.")
+        else:
+            # Make predictions
+            predictions = model.predict(df)
+            probabilities = model.predict_proba(df)[:, 1]
 
-        # Display Results
-        st.write("### Prediction Results")
-        st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+            df['Default_Risk'] = predictions
+            df['Probability'] = probabilities
 
-        # Download Predictions
-        st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
+            # Display results
+            st.write("### Prediction Results")
+            st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
 
-        # Explainability using SHAP
-        st.write("### Feature Importance")
-        
-        # Sample data for SHAP background
-        background = shap.sample(df_values, 100)
+            # Download option
+            st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
 
-        # Use KernelExplainer for model pipeline
-        explainer = shap.KernelExplainer(model.predict, background)
-        shap_values = explainer.shap_values(df_values)
+            # Explainability using SHAP
+            st.write("### Feature Importance")
+            explainer = shap.Explainer(model)  # Universal SHAP explainer
+            shap_values = explainer(df)
 
-        # SHAP Summary Plot
-        shap.summary_plot(shap_values, df_values, show=False)
-        plt.savefig("shap_summary.png", bbox_inches='tight')
-        st.image("shap_summary.png")
+            # SHAP Summary Plot
+            fig, ax = plt.subplots(figsize=(10, 5))
+            shap.summary_plot(shap_values, df, show=False)
+            st.pyplot(fig)
 
     except Exception as e:
         st.error(f"Error processing the file: {e}")
