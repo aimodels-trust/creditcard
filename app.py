@@ -28,57 +28,39 @@ expected_columns = [
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
 
-# Mapping categorical variables
-sex_mapping = {'Male': 1, 'Female': 2}
-education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
-marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
+# Explanation of variables
+st.write("### Feature Explanation")
+st.write("This study used the following 23 variables:")
+st.write("""
+- **LIMIT_BAL**: Amount of given credit (includes individual and family credit)
+- **SEX**: Gender (1 = Male, 2 = Female)
+- **EDUCATION**: (1 = Graduate School, 2 = University, 3 = High School, 4 = Others)
+- **MARRIAGE**: Marital status (1 = Married, 2 = Single, 3 = Others)
+- **AGE**: Age of the individual
+- **PAY_0 to PAY_6**: Past monthly payment records (-1 = Pay duly, 1-9 = Months delayed)
+- **BILL_AMT1 to BILL_AMT6**: Amount of bill statement from April to September 2005
+- **PAY_AMT1 to PAY_AMT6**: Amount of previous payments from April to September 2005
+""")
 
-# User input options
-option = st.radio("Select Input Method", ["Single Entry", "Batch Upload (CSV)"])
+# Batch Upload Section
+st.write("## Batch Upload (CSV)")
+st.write("Upload a CSV file containing customer details in the expected format.")
+st.write("**Expected CSV format:**")
+st.write(pd.DataFrame(columns=expected_columns).head())
 
-if option == "Single Entry":
-    # Single input fields
-    input_values = {}
-    for col in expected_columns:
-        if col == 'SEX':
-            input_values[col] = sex_mapping[st.selectbox("Gender", list(sex_mapping.keys()))]
-        elif col == 'EDUCATION':
-            input_values[col] = education_mapping[st.selectbox("Education", list(education_mapping.keys()))]
-        elif col == 'MARRIAGE':
-            input_values[col] = marriage_mapping[st.selectbox("Marital Status", list(marriage_mapping.keys()))]
-        elif col.startswith("PAY_AMT"):
-            input_values[col] = st.number_input(f"{col}", min_value=0)
-        elif col.startswith("PAY_"):
-            input_values[col] = st.number_input(f"{col}", min_value=-2, max_value=9, step=1)
-        else:
-            input_values[col] = st.number_input(col, min_value=0)
+uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file, header=None)
+    df.columns = expected_columns
     
-    # Predict button
-    if st.button("Predict"):
-        input_data = pd.DataFrame([input_values])
-        prediction = model.predict(input_data)[0]
-        probability = model.predict_proba(input_data)[0][1]
-        
-        # Display results
-        if prediction == 1:
-            st.error(f"Default Risk: High ({probability:.2%})")
-        else:
-            st.success(f"Default Risk: Low ({probability:.2%})")
-
-elif option == "Batch Upload (CSV)":
-    st.write("**Expected CSV format:**")
-    st.write(pd.DataFrame(columns=expected_columns).head())
+    # Make batch predictions
+    predictions = model.predict(df)
+    probabilities = model.predict_proba(df)[:, 1]
+    df['Default_Risk'] = predictions
+    df['Probability'] = probabilities
     
-    uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file, header=None)
-        df.columns = expected_columns
-        
-        # Make batch predictions
-        predictions = model.predict(df)
-        probabilities = model.predict_proba(df)[:, 1]
-        df['Default_Risk'] = predictions
-        df['Probability'] = probabilities
-        
-        st.write(df[['Default_Risk', 'Probability']])
-        st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
+    # Improved Interface with XAI
+    st.write("### Prediction Results")
+    st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+    
+    st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
