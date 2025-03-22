@@ -10,29 +10,6 @@ import matplotlib.pyplot as plt
 # Streamlit page config
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 
-# Custom CSS for better styling
-st.markdown(
-    """
-    <style>
-        .reportview-container {
-            background: #f5f7fa;
-        }
-        .sidebar .sidebar-content {
-            background: #f5f7fa;
-        }
-        h1 {
-            color: #333366;
-            text-align: center;
-        }
-        .stDataFrame {
-            border-radius: 10px;
-            overflow: hidden;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
@@ -71,7 +48,7 @@ if uploaded_file is not None:
         # Transform input data
         X_transformed = preprocessor.transform(df)
 
-        # Get transformed feature names (matches X_transformed)
+        # Get transformed feature names
         feature_names = preprocessor.get_feature_names_out()
 
         # Make predictions
@@ -90,48 +67,30 @@ if uploaded_file is not None:
         # Use a small sample (to speed up SHAP)
         sample_data = X_transformed[:50]
 
-        # Use SHAP TreeExplainer (since it's a RandomForest model)
+        # Use SHAP TreeExplainer
         explainer = shap.TreeExplainer(classifier)
         shap_values = explainer.shap_values(sample_data)
 
-        # Debug: Check feature shape before plotting
-        st.write(f"🔹 Sample Data Shape: {sample_data.shape}")
-        st.write(f"🔹 SHAP Values Shape: {shap_values[0].shape}")  # Correct class index
-        st.write(f"🔹 Feature Names Count: {len(feature_names)}")
-
         # Ensure correct SHAP values for class 1
-        if isinstance(shap_values, list) and len(shap_values) > 1:
-            correct_shap_values = shap_values[1]  # Assuming class 1 is the target
-        else:
-            correct_shap_values = shap_values
+        correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
 
-        if sample_data.shape[1] != correct_shap_values.shape[1]:
-            st.error(f"❌ Shape mismatch: Features = {sample_data.shape[1]}, SHAP Values = {correct_shap_values.shape[1]}")
-        else:
-            # Generate SHAP summary plot
-            fig, ax = plt.subplots(figsize=(10, 6))
-            shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
-            st.pyplot(fig)
+        # SHAP Summary Plot
+        fig, ax = plt.subplots(figsize=(10, 6))
+        shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
+        st.pyplot(fig)
 
-            # SHAP Bar Plot
-            st.subheader("🔹 SHAP Feature Importance (Bar Chart)")
-            shap_importance = np.abs(correct_shap_values).mean(axis=0)
-            importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
-            importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False)
+        # SHAP Feature Importance Bar Chart (Fixed)
+        st.subheader("🔹 SHAP Feature Importance (Bar Chart)")
+        shap_importance = np.abs(correct_shap_values).mean(axis=0)
+        importance_df = pd.DataFrame({'Feature': list(feature_names), 'SHAP Importance': shap_importance})
 
-            fig, ax = plt.subplots(figsize=(10, 6))
-            plt.barh(importance_df["Feature"][:10], importance_df["SHAP Importance"][:10], color="skyblue")
-            plt.xlabel("SHAP Importance")
-            plt.ylabel("Feature")
-            plt.title("Top 10 Important Features")
-            plt.gca().invert_yaxis()
-            st.pyplot(fig)
+        # Sort and Plot
+        importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False)
 
-st.sidebar.title("ℹ️ About")
-st.sidebar.info(
-    """
-    This app predicts **credit card default risk** using a trained model.  
-    It also provides **Explainable AI (XAI) insights** using **SHAP values**.  
-    📌 Upload a CSV file with customer details to get predictions.
-    """
-)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        plt.barh(importance_df["Feature"][:10], importance_df["SHAP Importance"][:10], color="skyblue")
+        plt.xlabel("SHAP Importance")
+        plt.ylabel("Feature")
+        plt.title("Top 10 Important Features")
+        plt.gca().invert_yaxis()
+        st.pyplot(fig)
