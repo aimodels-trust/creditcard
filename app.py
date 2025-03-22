@@ -5,8 +5,8 @@ import gdown
 import os
 import numpy as np
 
-# Step 1: Download the model from Google Drive
-model_url = "https://drive.google.com/uc?id=1tdfigkbM6cfk7-Emyd2jueEcS2vsb5oP"
+# Step 1: Update Model Link
+model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
 
 # Check if the model file already exists; if not, download it
@@ -52,13 +52,10 @@ if st.button("Predict"):
         'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
     ]
 
-    # Add missing columns with default values
+    # Add missing columns with default values (0 for numerical, mode for categorical)
     for col in expected_columns:
         if col not in input_data.columns:
-            if col in ['SEX', 'EDUCATION', 'MARRIAGE']:  # Categorical columns
-                input_data[col] = np.nan  # Default to NaN for safety
-            else:  # Numeric columns
-                input_data[col] = 0
+            input_data[col] = 0
 
     # Map string labels to numeric values
     sex_mapping = {'Male': 1, 'Female': 2}
@@ -69,16 +66,21 @@ if st.button("Predict"):
     input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping)
     input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping)
 
-    # Ensure categorical data types match what the model expects
-    input_data['SEX'] = input_data['SEX'].astype("Int64")  # Use nullable integer to avoid NaN issues
-    input_data['EDUCATION'] = input_data['EDUCATION'].astype("Int64")
-    input_data['MARRIAGE'] = input_data['MARRIAGE'].astype("Int64")
+    # Ensure categorical columns are integers
+    input_data['SEX'].fillna(1, inplace=True)  # Default to 'Male'
+    input_data['EDUCATION'].fillna(2, inplace=True)  # Default to 'University'
+    input_data['MARRIAGE'].fillna(1, inplace=True)  # Default to 'Married'
+
+    input_data['SEX'] = input_data['SEX'].astype(int)
+    input_data['EDUCATION'] = input_data['EDUCATION'].astype(int)
+    input_data['MARRIAGE'] = input_data['MARRIAGE'].astype(int)
 
     # Reorder columns to match the expected order
     input_data = input_data[expected_columns]
 
-    # Drop NaN values if any (ensures valid input)
-    input_data = input_data.dropna()
+    # Debugging output to check input before prediction
+    st.write("Final Input Data for Prediction:")
+    st.write(input_data)
 
     # Make prediction
     try:
