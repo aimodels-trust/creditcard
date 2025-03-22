@@ -5,7 +5,7 @@ import requests
 import os
 
 # GitHub raw file link (replace with your actual link)
-model_url = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/main/model.pkl"
+model_url = "https://github.com/aimodels-trust/creditcard/blob/main/model/model%20(2).pkl"
 model_path = "model.pkl"
 
 # Check if the model file exists; if not, download it
