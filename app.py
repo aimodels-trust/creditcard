@@ -70,20 +70,24 @@ if uploaded_file is not None:
         # Download predictions
         st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
 
-        # Explainability using SHAP
+        # Explainability using SHAP KernelExplainer
         st.write("### Feature Importance")
 
-        # Use SHAP with Pipeline model
+        # Extract preprocessor and classifier from pipeline
         preprocessor = model.named_steps['preprocessor']
         classifier = model.named_steps['classifier']
         
         # Transform the input data correctly
         X_transformed = preprocessor.transform(df)
 
-        explainer = shap.Explainer(classifier, X_transformed)
-        shap_values = explainer(X_transformed)
+        # Use a small sample for SHAP computation (to make it faster)
+        sample_data = X_transformed[:50]  # Use only 50 rows for efficiency
+
+        # Define SHAP KernelExplainer (works for any model)
+        explainer = shap.KernelExplainer(classifier.predict_proba, sample_data)
+        shap_values = explainer.shap_values(sample_data, nsamples=100)
 
         # Plot SHAP summary
-        shap.summary_plot(shap_values, X_transformed, show=False)
+        shap.summary_plot(shap_values[1], sample_data, show=False)
         plt.savefig("shap_summary.png", bbox_inches='tight')
         st.image("shap_summary.png")
