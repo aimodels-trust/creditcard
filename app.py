@@ -70,13 +70,15 @@ if uploaded_file is not None:
 
         # Debug: Check feature shape before plotting
         st.write(f"Sample Data Shape: {sample_data.shape}")
-        st.write(f"SHAP Values Shape: {shap_values[1].shape}")
+        st.write(f"SHAP Values Shape: {shap_values[0].shape}")  # Correct class index
         st.write(f"Feature Names Count: {len(feature_names)}")
 
-        # Ensure the number of features matches
-        if sample_data.shape[1] != shap_values[1].shape[1]:
-            st.error(f"Shape mismatch: Features = {sample_data.shape[1]}, SHAP Values = {shap_values[1].shape[1]}")
+        # Ensure correct SHAP values for class 1
+        correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+
+        if sample_data.shape[1] != correct_shap_values.shape[1]:
+            st.error(f"Shape mismatch: Features = {sample_data.shape[1]}, SHAP Values = {correct_shap_values.shape[1]}")
         else:
-            shap.summary_plot(shap_values[1], sample_data, feature_names=feature_names, show=False)
+            shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
             plt.savefig("shap_summary.png", bbox_inches='tight')
             st.image("shap_summary.png")
