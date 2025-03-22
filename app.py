@@ -56,9 +56,12 @@ if uploaded_file is not None:
         df = pd.read_csv(uploaded_file, header=None)
         df.columns = expected_columns
 
+        # Convert DataFrame to NumPy array (for pipeline compatibility)
+        df_values = df.to_numpy()
+
         # Make batch predictions
-        predictions = model.predict(df)
-        probabilities = model.predict_proba(df)[:, 1]
+        predictions = model.predict(df_values)
+        probabilities = model.predict_proba(df_values)[:, 1]
         df['Default_Risk'] = predictions
         df['Probability'] = probabilities
 
@@ -72,13 +75,15 @@ if uploaded_file is not None:
         # Explainability using SHAP
         st.write("### Feature Importance")
         
-        # Using KernelExplainer (better compatibility)
-        background = shap.sample(df, 100)  # Sample data for explainer
+        # Sample data for SHAP background
+        background = shap.sample(df_values, 100)
+
+        # Use KernelExplainer for model pipeline
         explainer = shap.KernelExplainer(model.predict, background)
-        shap_values = explainer.shap_values(df)
+        shap_values = explainer.shap_values(df_values)
 
         # SHAP Summary Plot
-        shap.summary_plot(shap_values, df, show=False)
+        shap.summary_plot(shap_values, df_values, show=False)
         plt.savefig("shap_summary.png", bbox_inches='tight')
         st.image("shap_summary.png")
 
