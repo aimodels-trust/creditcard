@@ -45,7 +45,7 @@ if uploaded_file is not None:
         # Transform input data
         X_transformed = preprocessor.transform(df)
 
-        # Get correct transformed feature names
+        # Get transformed feature names (matches X_transformed)
         feature_names = preprocessor.get_feature_names_out()
 
         # Make predictions
@@ -68,7 +68,15 @@ if uploaded_file is not None:
         explainer = shap.TreeExplainer(classifier)
         shap_values = explainer.shap_values(sample_data)
 
-        # SHAP summary plot with correct feature names
-        shap.summary_plot(shap_values[1], sample_data, feature_names=feature_names, show=False)
-        plt.savefig("shap_summary.png", bbox_inches='tight')
-        st.image("shap_summary.png")
+        # Debug: Check feature shape before plotting
+        st.write(f"Sample Data Shape: {sample_data.shape}")
+        st.write(f"SHAP Values Shape: {shap_values[1].shape}")
+        st.write(f"Feature Names Count: {len(feature_names)}")
+
+        # Ensure the number of features matches
+        if sample_data.shape[1] != shap_values[1].shape[1]:
+            st.error(f"Shape mismatch: Features = {sample_data.shape[1]}, SHAP Values = {shap_values[1].shape[1]}")
+        else:
+            shap.summary_plot(shap_values[1], sample_data, feature_names=feature_names, show=False)
+            plt.savefig("shap_summary.png", bbox_inches='tight')
+            st.image("shap_summary.png")
