@@ -1,32 +1,24 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import requests
+import gdown
 import os
+import numpy as np
+import matplotlib.pyplot as plt
 
-# GitHub raw file link (replace with your actual link)
-model_url = "https://github.com/aimodels-trust/creditcard/blob/main/model/model%20(3).pkl"
-model_path = "model.pkl"
+# Step 1: Download the model from Google Drive
+model_url = "https://drive.google.com/uc?id=1tdfigkbM6cfk7-Emyd2jueEcS2vsb5oP"
+model_path = "credit_default_model.pkl"
 
-# Check if the model file exists; if not, download it
+# Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
-    st.info("Downloading model from GitHub...")
-    response = requests.get(model_url)
-    if response.status_code == 200:
-        with open(model_path, "wb") as f:
-            f.write(response.content)
-    else:
-        st.error("Failed to download the model. Check the GitHub link.")
-        st.stop()
+    print("Downloading model from Google Drive...")
+    gdown.download(model_url, model_path, quiet=False)
 
-# Load the trained model
-try:
-    model = joblib.load(model_path)
-except Exception as e:
-    st.error(f"Error loading model: {e}")
-    st.stop()
+# Step 2: Load the trained model
+model = joblib.load(model_path)
 
-# Streamlit App UI
+# Step 3: Define the app
 st.title("Credit Card Default Prediction")
 
 # Input fields
@@ -41,49 +33,55 @@ pay_amt1 = st.number_input("Payment Amount", min_value=0)
 
 # Predict button
 if st.button("Predict"):
-    # Map string labels to numeric values
-    sex_mapping = {'Male': 1, 'Female': 2}
-    education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
-    marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
-
     # Prepare input data
     input_data = pd.DataFrame({
         'LIMIT_BAL': [limit_bal],
         'AGE': [age],
-        'SEX': [sex_mapping[sex]],
-        'EDUCATION': [education_mapping[education]],
-        'MARRIAGE': [marriage_mapping[marriage]],
-        'PAY_0': [pay_0], 'PAY_2': [pay_0], 'PAY_3': [pay_0], 'PAY_4': [pay_0], 'PAY_5': [pay_0], 'PAY_6': [pay_0],
-        'BILL_AMT1': [bill_amt1], 'BILL_AMT2': [bill_amt1], 'BILL_AMT3': [bill_amt1],
-        'BILL_AMT4': [bill_amt1], 'BILL_AMT5': [bill_amt1], 'BILL_AMT6': [bill_amt1],
-        'PAY_AMT1': [pay_amt1], 'PAY_AMT2': [pay_amt1], 'PAY_AMT3': [pay_amt1],
-        'PAY_AMT4': [pay_amt1], 'PAY_AMT5': [pay_amt1], 'PAY_AMT6': [pay_amt1]
+        'SEX': [sex],
+        'EDUCATION': [education],
+        'MARRIAGE': [marriage],
+        'PAY_0': [pay_0],
+        'BILL_AMT1': [bill_amt1],
+        'PAY_AMT1': [pay_amt1]
     })
 
-    # Ensure input data matches model expectations
+    # Define all expected columns (based on training data)
     expected_columns = [
         'LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE',
         'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
         'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
         'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
     ]
+
+    # Add missing columns with default values
+    for col in expected_columns:
+        if col not in input_data.columns:
+            if col in ['SEX', 'EDUCATION', 'MARRIAGE']:  # Categorical columns
+                input_data[col] = 0  # Default value for categorical columns
+            else:  # Numeric columns
+                input_data[col] = 0
+
+    # Map string labels to numeric values
+    sex_mapping = {'Male': 0, 'Female': 1}
+    education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
+    marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
+
+    input_data['SEX'] = input_data['SEX'].map(sex_mapping).astype(int)
+    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping).astype(int)
+    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping).astype(int)
+
+    # Reorder columns to match the expected order
     input_data = input_data[expected_columns]
 
-    try:
-        # Make prediction
-        prediction = model.predict(input_data)[0]
-        probability = model.predict_proba(input_data)[0][1]
+    # Make prediction
+    probability = model.predict_proba(input_data)[0][1]
 
-        # Force 100% probability for extreme high-risk cases
-        if pay_0 >= 8 and bill_amt1 > 40000 and pay_amt1 == 0:
-            probability = 1.0
-            prediction = 1
+    # Adjust threshold to 0.3
+    threshold = 0.3
+    prediction = 1 if probability >= threshold else 0
 
-        # Display results
-        if prediction == 1:
-            st.error(f"Default Risk: High ({probability:.2%})")
-        else:
-            st.success(f"Default Risk: Low ({probability:.2%})")
-
-    except Exception as e:
-        st.error(f"Prediction error: {e}")
+    # Display results
+    if prediction == 1:
+        st.error(f"Default Risk: High ({probability:.2%})")
+    else:
+        st.success(f"Default Risk: Low ({probability:.2%})")
