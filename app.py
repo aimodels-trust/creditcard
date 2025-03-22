@@ -3,19 +3,21 @@ import pandas as pd
 import joblib
 import gdown
 import os
+import numpy as np
 
 # Step 1: Download the model from Google Drive
 model_url = "https://drive.google.com/uc?id=1tdfigkbM6cfk7-Emyd2jueEcS2vsb5oP"
 model_path = "credit_default_model.pkl"
 
-# Download model if not present
+# Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
+    print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Load the trained model
+# Step 2: Load the trained model
 model = joblib.load(model_path)
 
-# Define the app
+# Step 3: Define the app
 st.title("Credit Card Default Prediction")
 
 # Input fields
@@ -30,6 +32,7 @@ pay_amt1 = st.number_input("Payment Amount", min_value=0)
 
 # Predict button
 if st.button("Predict"):
+    # Prepare input data
     input_data = pd.DataFrame({
         'LIMIT_BAL': [limit_bal],
         'AGE': [age],
@@ -41,7 +44,7 @@ if st.button("Predict"):
         'PAY_AMT1': [pay_amt1]
     })
 
-    # Expected columns based on training
+    # Define all expected columns (based on training data)
     expected_columns = [
         'LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE',
         'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
@@ -49,40 +52,40 @@ if st.button("Predict"):
         'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
     ]
 
-    # Mapping categorical variables
+    # Map string labels to numeric values
     sex_mapping = {'Male': 1, 'Female': 2}
     education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
     marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
 
-    input_data['SEX'] = input_data['SEX'].map(sex_mapping).fillna(1).astype(int)
-    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping).fillna(2).astype(int)
-    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping).fillna(1).astype(int)
+    input_data['SEX'] = input_data['SEX'].map(sex_mapping)
+    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping)
+    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping)
+
+    # Convert to the correct type and handle missing values
+    input_data['SEX'] = input_data['SEX'].fillna(0).astype(int)
+    input_data['EDUCATION'] = input_data['EDUCATION'].fillna(0).astype(int)
+    input_data['MARRIAGE'] = input_data['MARRIAGE'].fillna(0).astype(int)
 
     # Add missing columns with default values
     for col in expected_columns:
         if col not in input_data.columns:
             input_data[col] = 0  # Default value for missing columns
 
-    # Convert all values to integer
-    input_data = input_data.astype(int)
-
-    # Ensure the column order is correct
+    # Reorder columns to match the expected order
     input_data = input_data[expected_columns]
-
-    # Debugging output
-    st.write("Model expects features:", model.feature_names_in_)
-    st.write("Input Data Preview:", input_data)
 
     # Make prediction
     try:
         probability = model.predict_proba(input_data)[0][1]
+
+        # Scale probability safely
         scaled_probability = min(probability * 2, 1.0)
 
-        if scaled_probability >= 0.5:
+        # Display results
+        if scaled_probability >= 0.5:  # Adjust threshold if needed
             st.error(f"Default Risk: High ({scaled_probability:.2%})")
         else:
             st.success(f"Default Risk: Low ({scaled_probability:.2%})")
 
-    except ValueError as e:
-        st.error(f"Prediction error: {e}")
-        st.write("Unique Values in Each Column:", {col: input_data[col].unique() for col in input_data.columns})
+    except Exception as e:
+        st.error(f"Error making prediction: {e}")
