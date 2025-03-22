@@ -75,11 +75,4 @@ if uploaded_file is not None:
     st.write("### Feature Importance")
     shap.summary_plot(shap_values, df, show=False)
     plt.savefig("shap_summary.png", bbox_inches='tight')
-    st.image("shap_summary.png")File "/mount/src/creditcard/app.py", line 71, in <module> 
-    explainer = shap.TreeExplainer(model)
-                ^^^^^^^^^^^^^^^^^^^^^^^^^
-File "/home/adminuser/venv/lib/python3.12/site-packages/shap/explainers/_tree.py", line 239, in __init__
-    self.model = TreeEnsemble(model, self.data, self.data_missing, model_output)
-                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-File "/home/adminuser/venv/lib/python3.12/site-packages/shap/explainers/_tree.py", line 1393, in __init__
-    raise InvalidModelError("Model type not yet supported by TreeExplainer: 
+    st.image("shap_summary.png")
