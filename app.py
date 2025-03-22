@@ -4,18 +4,25 @@ import joblib
 import gdown
 import os
 import numpy as np
+import sklearn
 
-# Step 1: Download the model from Google Drive
+# Step 1: Download the model from Google Drive if not present
 model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
 
-# Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
-    print("Downloading model from Google Drive...")
+    st.write("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Step 2: Load the trained model
-model = joblib.load(model_path)
+# Step 2: Load the trained model with error handling
+try:
+    model = joblib.load(model_path)
+except ValueError as e:
+    st.error(f"Error loading model: {e}")
+    st.stop()  # Stop execution if model loading fails
+except Exception as e:
+    st.error(f"Unexpected error: {e}")
+    st.stop()
 
 # Step 3: Define the app
 st.title("Credit Card Default Prediction")
@@ -60,17 +67,21 @@ if st.button("Predict"):
     ]
     input_data = input_data[expected_columns]
 
-    # Make prediction
-    prediction = model.predict(input_data)[0]
-    probability = model.predict_proba(input_data)[0][1]
+    try:
+        # Make prediction
+        prediction = model.predict(input_data)[0]
+        probability = model.predict_proba(input_data)[0][1]
 
-    # Force 100% probability for extreme high-risk cases
-    if pay_0 >= 8 and bill_amt1 > 40000 and pay_amt1 == 0:
-        probability = 1.0
-        prediction = 1
+        # Force 100% probability for extreme high-risk cases
+        if pay_0 >= 8 and bill_amt1 > 40000 and pay_amt1 == 0:
+            probability = 1.0
+            prediction = 1
 
-    # Display results
-    if prediction == 1:
-        st.error(f"Default Risk: High ({probability:.2%})")
-    else:
-        st.success(f"Default Risk: Low ({probability:.2%})")
+        # Display results
+        if prediction == 1:
+            st.error(f"Default Risk: High ({probability:.2%})")
+        else:
+            st.success(f"Default Risk: Low ({probability:.2%})")
+
+    except Exception as e:
+        st.error(f"Prediction error: {e}")
