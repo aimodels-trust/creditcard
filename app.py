@@ -28,6 +28,11 @@ expected_columns = [
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
 
+# Mapping categorical variables
+sex_mapping = {'Male': 1, 'Female': 2}
+education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
+marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
+
 # User input options
 option = st.radio("Select Input Method", ["Single Entry", "Batch Upload (CSV)"])
 
@@ -35,9 +40,9 @@ if option == "Single Entry":
     # Single input fields
     limit_bal = st.number_input("Credit Limit", min_value=0)
     age = st.number_input("Age", min_value=18)
-    sex = st.selectbox("Gender", ["Male", "Female"])
-    education = st.selectbox("Education", ["Graduate School", "University", "High School", "Others"])
-    marriage = st.selectbox("Marital Status", ["Married", "Single", "Others"])
+    sex = st.selectbox("Gender", list(sex_mapping.keys()))
+    education = st.selectbox("Education", list(education_mapping.keys()))
+    marriage = st.selectbox("Marital Status", list(marriage_mapping.keys()))
     pay_0 = st.selectbox("Repayment Status", [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     bill_amt1 = st.number_input("Bill Amount", min_value=0)
     pay_amt1 = st.number_input("Payment Amount", min_value=0)
@@ -47,22 +52,13 @@ if option == "Single Entry":
         input_data = pd.DataFrame({
             'LIMIT_BAL': [limit_bal],
             'AGE': [age],
-            'SEX': [sex],
-            'EDUCATION': [education],
-            'MARRIAGE': [marriage],
+            'SEX': [sex_mapping[sex]],
+            'EDUCATION': [education_mapping[education]],
+            'MARRIAGE': [marriage_mapping[marriage]],
             'PAY_0': [pay_0],
             'BILL_AMT1': [bill_amt1],
             'PAY_AMT1': [pay_amt1]
         })
-
-        # Mapping categorical variables
-        sex_mapping = {'Male': 1, 'Female': 2}
-        education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
-        marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
-
-        input_data['SEX'] = input_data['SEX'].map(sex_mapping)
-        input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping)
-        input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping)
 
         # Add missing columns with default values
         for col in expected_columns:
@@ -95,6 +91,11 @@ elif option == "Batch Upload (CSV)":
             if col not in df.columns:
                 df[col] = 0
 
+        # Handle categorical variables safely
+        df['SEX'] = df['SEX'].map(sex_mapping).fillna(0).astype(int)
+        df['EDUCATION'] = df['EDUCATION'].map(education_mapping).fillna(0).astype(int)
+        df['MARRIAGE'] = df['MARRIAGE'].map(marriage_mapping).fillna(0).astype(int)
+        
         df = df[expected_columns]
 
         # Make batch predictions
