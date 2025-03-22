@@ -12,19 +12,20 @@ model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
 
 if not os.path.exists(model_path):
-    print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
 # Step 2: Load the trained model
 model = joblib.load(model_path)
 
-# Step 3: Define Streamlit app with sidebar navigation
+# Step 3: Define Streamlit app
+st.set_page_config(page_title="Credit Default Prediction", layout="wide")
+st.title("💳 Credit Card Default Prediction with Explainability")
+
+# Sidebar Navigation
 st.sidebar.title("Navigation")
-app_mode = st.sidebar.radio("Select Page", ["🏠 Home", "📊 Feature Importance"])
+app_mode = st.sidebar.radio("Select Mode", ["🏠 Home", "📊 Feature Importance"])
 
-st.title("Credit Card Default Prediction with Explainability")
-
-# Define expected input features
+# Expected input features
 expected_columns = [
     'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
     'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
@@ -33,24 +34,20 @@ expected_columns = [
 ]
 
 if app_mode == "🏠 Home":
-    st.write("### Upload your dataset to get predictions")
+    st.write("### Upload a CSV file for predictions")
 
-    uploaded_file = st.file_uploader("📂 Upload CSV file", type=["csv"])
+    uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
 
-    if uploaded_file is not None:
+    if uploaded_file:
         df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
         if df.shape[1] != len(expected_columns):
-            st.error("Uploaded CSV does not match expected format. Please check the number of columns.")
+            st.error("Uploaded CSV format is incorrect! Check the column count.")
         else:
-            # Extract preprocessor and classifier
             preprocessor = model.named_steps['preprocessor']
             classifier = model.named_steps['classifier']
 
-            # Transform input data
             X_transformed = preprocessor.transform(df)
-
-            # Make predictions
             predictions = classifier.predict(X_transformed)
             probabilities = classifier.predict_proba(X_transformed)[:, 1]
 
@@ -61,72 +58,52 @@ if app_mode == "🏠 Home":
             st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
 
 elif app_mode == "📊 Feature Importance":
-    st.title("📊 Feature Importance & Explainability")
+    st.write("### 🔍 Feature Importance & Explainability")
 
-    uploaded_file = st.file_uploader("📂 Upload CSV file for SHAP Analysis", type=["csv"])
+    uploaded_file = st.file_uploader("📂 Upload CSV for SHAP Analysis", type=["csv"])
 
-    if uploaded_file is not None:
+    if uploaded_file:
         df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
         if df.shape[1] != len(expected_columns):
-            st.error("Uploaded CSV does not match expected format. Please check the number of columns.")
+            st.error("Uploaded CSV format is incorrect! Check the column count.")
         else:
-            with st.spinner("Processing data..."):
-                # Extract preprocessor and classifier
-                preprocessor = model.named_steps['preprocessor']
-                classifier = model.named_steps['classifier']
-                
-                # Transform input data
-                X_transformed = preprocessor.transform(df)
+            preprocessor = model.named_steps['preprocessor']
+            classifier = model.named_steps['classifier']
+            X_transformed = preprocessor.transform(df)
 
-                # Get correct feature names (handling one-hot encoding)
-                feature_names = expected_columns  # Keep original feature names
+            feature_names = expected_columns  # Use original feature names
+            sample_data = X_transformed[:5]  # Reduce sample size for speed
 
-                # Use a small sample for faster SHAP computation
-                sample_data = X_transformed[:50]
+            explainer = shap.TreeExplainer(classifier)
+            shap_values = explainer.shap_values(sample_data)
 
-                # SHAP explainability
-                explainer = shap.TreeExplainer(classifier)
-                shap_values = explainer.shap_values(sample_data)
-
-            # Ensure SHAP values are correctly indexed
             correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+            shap_importance = np.abs(correct_shap_values).mean(axis=0)
 
-            # **Fix Shape Mismatch & Convert SHAP Importance to 1D**
-            try:
-                shap_importance = np.abs(correct_shap_values).mean(axis=0)
+            # Ensure correct dimensions
+            shap_importance = shap_importance[:len(feature_names)]
+            feature_names = feature_names[:len(shap_importance)]
 
-                # Ensure it's 1D
-                shap_importance = np.squeeze(shap_importance)
+            # Create feature importance DataFrame
+            importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
+            importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
 
-                # Ensure correct length
-                if len(shap_importance) > len(feature_names):
-                    shap_importance = shap_importance[:len(feature_names)]
-                elif len(shap_importance) < len(feature_names):
-                    feature_names = feature_names[:len(shap_importance)]
+            # Display results
+            st.write("### 🔥 Top 10 Most Important Features")
+            st.dataframe(importance_df)
 
-                # Create feature importance dataframe
-                importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
-                importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
+            # Plot bar chart
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
+            ax.set_xlabel("SHAP Importance")
+            ax.set_ylabel("Feature")
+            ax.set_title("📊 Feature Importance")
+            plt.gca().invert_yaxis()
+            st.pyplot(fig)
 
-                # Display feature importance table
-                st.write("### 🔥 Top 10 Most Important Features")
-                st.dataframe(importance_df)
-
-                # Plot feature importance
-                fig, ax = plt.subplots(figsize=(8, 5))
-                ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
-                ax.set_xlabel("SHAP Importance")
-                ax.set_ylabel("Feature")
-                ax.set_title("📊 Feature Importance")
-                plt.gca().invert_yaxis()  # Invert to show highest importance at the top
-                st.pyplot(fig)
-
-                # SHAP Summary Plot
-                st.write("### 📊 SHAP Summary Plot")
-                shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
-                plt.savefig("shap_summary.png", bbox_inches='tight')
-                st.image("shap_summary.png")
-
-            except Exception as e:
-                st.error(f"Feature importance computation failed: {str(e)}")
+            # SHAP Summary Plot
+            st.write("### 📊 SHAP Summary Plot")
+            shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
+            plt.savefig("shap_summary.png", bbox_inches='tight')
+            st.image("shap_summary.png")
