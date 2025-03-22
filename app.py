@@ -56,39 +56,33 @@ if st.button("Predict"):
     for col in expected_columns:
         if col not in input_data.columns:
             if col in ['SEX', 'EDUCATION', 'MARRIAGE']:  # Categorical columns
-                input_data[col] = np.nan  # Default to NaN for safety
+                input_data[col] = 0  # Default value for categorical columns
             else:  # Numeric columns
                 input_data[col] = 0
 
     # Map string labels to numeric values
-    sex_mapping = {'Male': 1, 'Female': 2}
+    sex_mapping = {'Male': 0, 'Female': 1}
     education_mapping = {'Graduate School': 1, 'University': 2, 'High School': 3, 'Others': 4}
     marriage_mapping = {'Married': 1, 'Single': 2, 'Others': 3}
 
-    input_data['SEX'] = input_data['SEX'].map(sex_mapping)
-    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping)
-    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping)
-
-    # Ensure categorical data types match what the model expects
-    input_data['SEX'] = input_data['SEX'].astype("Int64")  # Use nullable integer to avoid NaN issues
-    input_data['EDUCATION'] = input_data['EDUCATION'].astype("Int64")
-    input_data['MARRIAGE'] = input_data['MARRIAGE'].astype("Int64")
+    input_data['SEX'] = input_data['SEX'].map(sex_mapping).astype(int)
+    input_data['EDUCATION'] = input_data['EDUCATION'].map(education_mapping).astype(int)
+    input_data['MARRIAGE'] = input_data['MARRIAGE'].map(marriage_mapping).astype(int)
 
     # Reorder columns to match the expected order
     input_data = input_data[expected_columns]
 
-    # Drop NaN values if any (ensures valid input)
-    input_data = input_data.dropna()
-
     # Make prediction
-    try:
-        prediction = model.predict(input_data)[0]
-        probability = model.predict_proba(input_data)[0][1]
+    probability = model.predict_proba(input_data)[0][1]
 
-        # Display results
-        if prediction == 1:
-            st.error(f"Default Risk: High ({probability:.2%})")
-        else:
-            st.success(f"Default Risk: Low ({probability:.2%})")
-    except Exception as e:
-        st.error(f"Error making prediction: {e}")
+    # Double the probability percentage
+    doubled_probability = probability * 2
+
+    # Ensure the doubled probability does not exceed 100%
+    doubled_probability = min(doubled_probability, 1.0)
+
+    # Display results
+    if doubled_probability >= 0.5:  # Adjust threshold if needed
+        st.error(f"Default Risk: High ({doubled_probability:.2%})")
+    else:
+        st.success(f"Default Risk: Low ({doubled_probability:.2%})")
