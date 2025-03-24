@@ -13,21 +13,25 @@ model_path = "credit_default_model.pkl"
 
 # Check if the model file already exists; if not, download it
 if not os.path.exists(model_path):
-print("Downloading model from Google Drive...")
-gdown.download(model_url, model_path, quiet=False)
+    print("Downloading model from Google Drive...")
+    gdown.download(model_url, model_path, quiet=False)
 
 # Step 2: Load the trained model
-model = joblib.load(model_path)
+try:
+    model = joblib.load(model_path)
+except Exception as e:
+    st.error(f"Error loading the model: {e}")
+    st.stop()
 
 # Step 3: Define the app
 st.title("Credit Card Default Prediction with Explainability")
 
 # Define expected columns
 expected_columns = [
-'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
-'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
-'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
-'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
+    'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
+    'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
+    'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
+    'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
 
 # Explanation of variables
@@ -52,34 +56,39 @@ st.write(pd.DataFrame(columns=expected_columns).head())
 
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 if uploaded_file is not None:
-df = pd.read_csv(uploaded_file, header=None)
-df.columns = expected_columns
-
-# Make batch predictions
-predictions = model.predict(df)
-probabilities = model.predict_proba(df)[:, 1]
-df['Default_Risk'] = predictions
-df['Probability'] = probabilities
-
-# Improved Interface with XAI
-st.write("### Prediction Results")
-st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
-
-st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
-
-# Explainability using SHAP
-explainer = shap.TreeExplainer(model)
-shap_values = explainer.shap_values(df)
-
-st.write("### Feature Importance")
-shap.summary_plot(shap_values, df, show=False)
-plt.savefig("shap_summary.png", bbox_inches='tight')
-st.image("shap_summary.png")
-
-# Individual Prediction Explanations
-st.write("### Individual Prediction Explanation")
-for i in range(min(3, len(df))): # Show SHAP force plot for first few records
-st.write(f"Explanation for Record {i+1}:")
-shap.force_plot(explainer.expected_value, shap_values[i, :], df.iloc[i, :], matplotlib=True)
-plt.savefig(f"shap_force_{i}.png", bbox_inches='tight')
-st.image(f"shap_force_{i}.png")
+    df = pd.read_csv(uploaded_file)
+    
+    # Ensure all expected columns are present
+    missing_cols = [col for col in expected_columns if col not in df.columns]
+    if missing_cols:
+        st.error(f"Missing columns in the uploaded file: {missing_cols}")
+        st.stop()
+    
+    # Make batch predictions
+    predictions = model.predict(df[expected_columns])
+    probabilities = model.predict_proba(df[expected_columns])[:, 1]
+    df['Default_Risk'] = predictions
+    df['Probability'] = probabilities
+    
+    # Improved Interface with XAI
+    st.write("### Prediction Results")
+    st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+    
+    st.download_button("Download Predictions", df.to_csv(index=False), file_name="predictions.csv", mime="text/csv")
+    
+    # Explainability using SHAP
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(df[expected_columns])
+    
+    st.write("### Feature Importance")
+    shap.summary_plot(shap_values, df[expected_columns], show=False)
+    plt.savefig("shap_summary.png", bbox_inches='tight')
+    st.image("shap_summary.png")
+    
+    # Individual Prediction Explanations
+    st.write("### Individual Prediction Explanation")
+    for i in range(min(3, len(df))):  # Show SHAP force plot for first few records
+        st.write(f"Explanation for Record {i+1}:")
+        shap.force_plot(explainer.expected_value[1], shap_values[i, :], df[expected_columns].iloc[i, :], matplotlib=True)
+        plt.savefig(f"shap_force_{i}.png", bbox_inches='tight')
+        st.image(f"shap_force_{i}.png")
