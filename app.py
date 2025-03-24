@@ -12,10 +12,11 @@ from sklearn.pipeline import Pipeline
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 
 # Step 1: Download the model from Google Drive
-model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
+model_url = "https://drive.google.com/uc?id=1jYYyCCOPzYP00BGIg9_EA2FFLqHBteI0"
 model_path = "credit_default_model.pkl"
 
 if not os.path.exists(model_path):
+    st.write("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
 # Step 2: Load the trained model
