@@ -40,10 +40,51 @@ expected_columns = [
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
 
+# Data privacy assurance
+st.sidebar.markdown("### Data Privacy")
+st.sidebar.write("Your data is not stored or shared. All computations are done locally on your device.")
+
+# Model transparency
+st.sidebar.markdown("### About the Model")
+st.sidebar.write("This model predicts the likelihood of credit card default based on user-provided data. It was trained on a dataset of credit card users and uses SHAP for explainability.")
+
 if app_mode == "🏠 Home":
     st.write("### Predict Credit Card Default")
+
+    # Manual input form
+    st.write("#### Enter Your Details")
+    with st.form("user_input_form"):
+        limit_bal = st.number_input("Credit Limit (LIMIT_BAL)", min_value=0)
+        age = st.number_input("Age (AGE)", min_value=18, max_value=100)
+        sex = st.selectbox("Sex (SEX)", options=[1, 2], format_func=lambda x: "Male" if x == 1 else "Female")
+        education = st.selectbox("Education (EDUCATION)", options=[1, 2, 3, 4], format_func=lambda x: {1: "Graduate", 2: "University", 3: "High School", 4: "Others"}[x])
+        marriage = st.selectbox("Marriage (MARRIAGE)", options=[1, 2, 3], format_func=lambda x: {1: "Married", 2: "Single", 3: "Others"}[x])
+        submitted = st.form_submit_button("Predict")
+
+    if submitted:
+        user_data = pd.DataFrame([[limit_bal, sex, education, marriage, age] + [0] * 18], columns=expected_columns)
+        preprocessor = model.named_steps['preprocessor']
+        classifier = model.named_steps['classifier']
+        X_transformed = preprocessor.transform(user_data)
+        prediction = classifier.predict(X_transformed)
+        probability = classifier.predict_proba(X_transformed)[:, 1]
+
+        st.write("### Prediction Result")
+        st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
+        st.write(f"Probability of Default: {probability[0]:.2f}")
+
+        # Local SHAP explanation
+        explainer = shap.TreeExplainer(classifier)
+        shap_values = explainer.shap_values(X_transformed)
+        st.write("#### Local Explanation (SHAP)")
+        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data.iloc[0, :], matplotlib=True, show=False)
+        st.pyplot(bbox_inches='tight')
+        plt.clf()
+
+    # CSV upload functionality
+    st.write("#### Upload a CSV File for Predictions")
     uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
-    
+
     if uploaded_file:
         df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
@@ -64,8 +105,9 @@ if app_mode == "🏠 Home":
 
 elif app_mode == "📊 Feature Importance":
     st.write("### 🔍 Feature Importance & Explainability")
+
     uploaded_file = st.file_uploader("📂 Upload CSV for SHAP Analysis", type=["csv"])
-    
+
     if uploaded_file:
         df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
@@ -82,14 +124,23 @@ elif app_mode == "📊 Feature Importance":
             explainer = shap.TreeExplainer(classifier)
             shap_values = explainer.shap_values(sample_data)
 
-            if isinstance(shap_values, list):
-                shap_values = shap_values[1]  # Binary classification case
+            # Ensure correct shape for SHAP values
+            correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+            shap_importance = np.abs(correct_shap_values).mean(axis=0)
 
-            # Feature importance calculation
-            shap_importance = np.abs(shap_values).mean(axis=0)
+            # Convert to 1D array
+            shap_importance = np.array(shap_importance).flatten()
+
+            # Ensure dimensions match
+            min_len = min(len(feature_names), len(shap_importance))
+            feature_names = feature_names[:min_len]
+            shap_importance = shap_importance[:min_len]
+
+            # Create DataFrame for feature importance
             importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
             importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
 
+            # Display results
             st.write("### 🔥 Top 10 Most Important Features")
             st.dataframe(importance_df)
 
@@ -104,6 +155,6 @@ elif app_mode == "📊 Feature Importance":
 
             # SHAP Summary Plot
             st.write("### 📊 SHAP Summary Plot")
-            shap.summary_plot(shap_values, sample_data, feature_names=feature_names, show=False)
+            shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
             plt.savefig("shap_summary.png", bbox_inches='tight')
             st.image("shap_summary.png")
