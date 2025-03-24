@@ -80,11 +80,13 @@ if app_mode == "🏠 Home":
 
     if submitted:
         # Create a DataFrame with all 23 features
-        user_data = pd.DataFrame([[limit_bal, sex, education, marriage, age,
-                                   pay_0, pay_2, pay_3, pay_4, pay_5, pay_6,
-                                   bill_amt1, bill_amt2, bill_amt3, bill_amt4, bill_amt5, bill_amt6,
-                                   pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
-                                 columns=expected_columns)
+        # Ensure input is properly shaped as a DataFrame with a single row
+        user_data = pd.DataFrame(np.array([[limit_bal, sex, education, marriage, age,
+                                    pay_0, pay_2, pay_3, pay_4, pay_5, pay_6,
+                                    bill_amt1, bill_amt2, bill_amt3, bill_amt4, bill_amt5, bill_amt6,
+                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]]),
+                         columns=expected_columns)
+
         
         # Predict
         prediction = model.predict(user_data)
