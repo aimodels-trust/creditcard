@@ -118,14 +118,6 @@ if app_mode == "🏠 Home":
         st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
         st.write(f"Probability of Default: {probability[0]:.2f}")
 
-        # Local SHAP explanation
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(user_data)
-        st.write("#### Local Explanation (SHAP)")
-        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data.iloc[0, :], matplotlib=True, show=False)
-        st.pyplot(bbox_inches='tight')
-        plt.clf()
-
     # CSV upload functionality
     st.write("#### Upload a CSV File for Predictions")
     uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
