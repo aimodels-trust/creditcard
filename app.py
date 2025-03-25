@@ -206,18 +206,28 @@ elif app_mode == "📊 Feature Importance":
 
             # Ensure dimensions match
             min_len = min(len(expected_columns), len(shap_importance))
-            feature_importance_df = pd.DataFrame({
-                'Feature': expected_columns[:min_len],
-                'SHAP Importance': shap_importance[:min_len]
-            }).sort_values(by="SHAP Importance", ascending=False)
+            feature_names = expected_columns[:min_len]
+            shap_importance = shap_importance[:min_len]
 
-            # Display feature importance
-            st.write("#### Feature Importance (SHAP Values)")
-            st.bar_chart(feature_importance_df.set_index("Feature"))
+            # Create DataFrame for feature importance
+            importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
+            importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
 
-            # SHAP summary plot
-            st.write("#### SHAP Summary Plot")
-            shap.summary_plot(correct_shap_values, X_transformed, feature_names=expected_columns, show=False)
-            st.pyplot(bbox_inches='tight')
-            plt.clf()
+            # Display results
+            st.write("### 🔥 Top 10 Most Important Features")
+            st.dataframe(importance_df)
 
+            # Plot bar chart
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
+            ax.set_xlabel("SHAP Importance")
+            ax.set_ylabel("Feature")
+            ax.set_title("📊 Feature Importance")
+            plt.gca().invert_yaxis()
+            st.pyplot(fig)
+
+            # SHAP Summary Plot
+            st.write("### 📊 SHAP Summary Plot")
+            shap.summary_plot(correct_shap_values, X_transformed, feature_names=feature_names, show=False)
+            plt.savefig("shap_summary.png", bbox_inches='tight')
+            st.image("shap_summary.png")
