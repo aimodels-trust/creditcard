@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import gdown
 import os
 import numpy as np
 import shap
@@ -11,23 +10,16 @@ from sklearn.pipeline import Pipeline
 # Step 0: Set page configuration (must be the first Streamlit command)
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 
-# Step 1: Download the model from Google Drive
-model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
-model_path = "credit_default_model.pkl"
-
-if not os.path.exists(model_path):
-    gdown.download(model_url, model_path, quiet=False)
-
-# Step 2: Load the trained model
+# Step 1: Load the trained model
 @st.cache_resource
 def load_model():
-    model = joblib.load(model_path)
+    model = joblib.load("credit_default_model.pkl")
     print("Model type:", type(model))
     return model
 
 model = load_model()
 
-# Step 3: Define Streamlit app
+# Step 2: Define Streamlit app
 st.title("💳 Credit Card Default Prediction with Explainability")
 
 # Sidebar Navigation
@@ -41,14 +33,6 @@ expected_columns = [
     'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
-
-# Data privacy assurance
-st.sidebar.markdown("### Data Privacy")
-st.sidebar.write("Your data is not stored or shared. All computations are done locally on your device.")
-
-# Model transparency
-st.sidebar.markdown("### About the Model")
-st.sidebar.write("This model predicts the likelihood of credit card default based on user-provided data. It uses SHAP for explainability.")
 
 if app_mode == "🏠 Home":
     st.write("### Predict Credit Card Default")
@@ -112,18 +96,21 @@ if app_mode == "🏠 Home":
         st.write(f"Probability of Default: {probability[0]:.2f}")
 
         # Local SHAP explanation
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(user_data)
+        try:
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(user_data)
 
-        # Ensure correct shape for SHAP values
-        if isinstance(shap_values, list):  # Binary classification
-            shap_values = shap_values[1]  # Use SHAP values for the positive class
+            # Ensure correct shape for SHAP values
+            if isinstance(shap_values, list):  # Binary classification
+                shap_values = shap_values[1]  # Use SHAP values for the positive class
 
-        st.write("#### Local Explanation (SHAP)")
-        shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
-                        shap_values, user_data.iloc[0, :], matplotlib=True, show=False)
-        st.pyplot(bbox_inches='tight')
-        plt.clf()
+            st.write("#### Local Explanation (SHAP)")
+            shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
+                            shap_values, user_data.iloc[0, :], matplotlib=True, show=False)
+            st.pyplot(bbox_inches='tight')
+            plt.clf()
+        except Exception as e:
+            st.error(f"SHAP explanation failed: {e}")
 
     # CSV upload functionality
     st.write("#### Upload a CSV File for Predictions")
@@ -162,43 +149,52 @@ elif app_mode == "📊 Feature Importance":
             st.stop()
 
         # Preprocess the data
+        def preprocess_input_data(df):
+            df['SEX'] = df['SEX'].astype(int)
+            df['EDUCATION'] = df['EDUCATION'].astype(int)
+            df['MARRIAGE'] = df['MARRIAGE'].astype(int)
+            return df
+
         df = preprocess_input_data(df)
 
         # Compute SHAP values
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(df)
+        try:
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(df)
 
-        # Ensure correct shape for SHAP values
-        correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
-        shap_importance = np.abs(correct_shap_values).mean(axis=0)
+            # Ensure correct shape for SHAP values
+            correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+            shap_importance = np.abs(correct_shap_values).mean(axis=0)
 
-        # Convert to 1D array
-        shap_importance = np.array(shap_importance).flatten()
+            # Convert to 1D array
+            shap_importance = np.array(shap_importance).flatten()
 
-        # Ensure dimensions match
-        min_len = min(len(expected_columns), len(shap_importance))
-        feature_names = expected_columns[:min_len]
-        shap_importance = shap_importance[:min_len]
+            # Ensure dimensions match
+            min_len = min(len(expected_columns), len(shap_importance))
+            feature_names = expected_columns[:min_len]
+            shap_importance = shap_importance[:min_len]
 
-        # Create DataFrame for feature importance
-        importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
-        importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
+            # Create DataFrame for feature importance
+            importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
+            importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
 
-        # Display results
-        st.write("### 🔥 Top 10 Most Important Features")
-        st.dataframe(importance_df)
+            # Display results
+            st.write("### 🔥 Top 10 Most Important Features")
+            st.dataframe(importance_df)
 
-        # Plot bar chart
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
-        ax.set_xlabel("SHAP Importance")
-        ax.set_ylabel("Feature")
-        ax.set_title("📊 Feature Importance")
-        plt.gca().invert_yaxis()
-        st.pyplot(fig)
+            # Plot bar chart
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
+            ax.set_xlabel("SHAP Importance")
+            ax.set_ylabel("Feature")
+            ax.set_title("📊 Feature Importance")
+            plt.gca().invert_yaxis()
+            st.pyplot(fig)
 
-        # SHAP Summary Plot
-        st.write("### 📊 SHAP Summary Plot")
-        shap.summary_plot(correct_shap_values, df, feature_names=feature_names, show=False)
-        plt.savefig("shap_summary.png", bbox_inches='tight')
-        st.image("shap_summary.png")
+            # SHAP Summary Plot
+            st.write("### 📊 SHAP Summary Plot")
+            shap.summary_plot(correct_shap_values, df, feature_names=feature_names, show=False)
+            plt.savefig("shap_summary.png", bbox_inches='tight')
+            st.image("shap_summary.png")
+        except Exception as e:
+            st.error(f"SHAP analysis failed: {e}")
