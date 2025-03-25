@@ -95,28 +95,38 @@ if app_mode == "🏠 Home":
                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
                                  columns=expected_columns)
         
-        # Check if the model is a Pipeline
-        if isinstance(model, Pipeline):
-            preprocessor = model.named_steps['preprocessor']
-            classifier = model.named_steps['classifier']
-            X_transformed = preprocessor.transform(user_data)
-            prediction = classifier.predict(X_transformed)
-            probability = classifier.predict_proba(X_transformed)[:, 1]
-        else:
-            # Preprocess manually if not a Pipeline
-            def preprocess_input_data(df):
-                df['SEX'] = df['SEX'].astype(int)
-                df['EDUCATION'] = df['EDUCATION'].astype(int)
-                df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-                return df
-
-            user_data = preprocess_input_data(user_data)
-            prediction = model.predict(user_data)
-            probability = model.predict_proba(user_data)[:, 1]
+        # Preprocess and predict
+        preprocessor = model.named_steps['preprocessor']
+        classifier = model.named_steps['classifier']
+        X_transformed = preprocessor.transform(user_data)
+        prediction = classifier.predict(X_transformed)
+        probability = classifier.predict_proba(X_transformed)[:, 1]
 
         st.write("### Prediction Result")
         st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
         st.write(f"Probability of Default: {probability[0]:.2f}")
+
+        # Local SHAP explanation (removed force_plot)
+        explainer = shap.TreeExplainer(classifier)
+        shap_values = explainer.shap_values(X_transformed)
+
+        # Check if shap_values is a list (binary classification)
+        if isinstance(shap_values, list):
+            # For binary classification, use shap_values[1] for the positive class
+            shap_values = shap_values[1]
+            base_value = explainer.expected_value[1]
+        else:
+            # For non-binary cases, use shap_values directly
+            base_value = explainer.expected_value
+
+        # Ensure the input data is in the correct format
+        features = user_data.iloc[0:1, :]  # Extract the first row of user data as a DataFrame
+
+        # Generate the SHAP force plot (commented out)
+        # st.write("#### Local Explanation (SHAP)")
+        # shap.force_plot(base_value, shap_values[0], features, matplotlib=True, show=False)
+        # st.pyplot(bbox_inches='tight')
+        # plt.clf()
 
     # CSV upload functionality
     st.write("#### Upload a CSV File for Predictions")
@@ -128,24 +138,11 @@ if app_mode == "🏠 Home":
         if df.shape[1] != len(expected_columns):
             st.error("Uploaded CSV format is incorrect! Check the column count.")
         else:
-            # Check if the model is a Pipeline
-            if isinstance(model, Pipeline):
-                preprocessor = model.named_steps['preprocessor']
-                classifier = model.named_steps['classifier']
-                X_transformed = preprocessor.transform(df)
-                predictions = classifier.predict(X_transformed)
-                probabilities = classifier.predict_proba(X_transformed)[:, 1]
-            else:
-                # Preprocess manually if not a Pipeline
-                def preprocess_input_data(df):
-                    df['SEX'] = df['SEX'].astype(int)
-                    df['EDUCATION'] = df['EDUCATION'].astype(int)
-                    df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-                    return df
-
-                df = preprocess_input_data(df)
-                predictions = model.predict(df)
-                probabilities = model.predict_proba(df)[:, 1]
+            preprocessor = model.named_steps['preprocessor']
+            classifier = model.named_steps['classifier']
+            X_transformed = preprocessor.transform(df)
+            predictions = classifier.predict(X_transformed)
+            probabilities = classifier.predict_proba(X_transformed)[:, 1]
 
             df['Default_Risk'] = predictions
             df['Probability'] = probabilities
@@ -164,24 +161,14 @@ elif app_mode == "📊 Feature Importance":
         if df.shape[1] != len(expected_columns):
             st.error("Uploaded CSV format is incorrect! Check the column count.")
         else:
-            # Check if the model is a Pipeline
-            if isinstance(model, Pipeline):
-                preprocessor = model.named_steps['preprocessor']
-                classifier = model.named_steps['classifier']
-                X_transformed = preprocessor.transform(df)
-                sample_data = X_transformed[:5]  # Reduce sample size for speed
-            else:
-                # Preprocess manually if not a Pipeline
-                def preprocess_input_data(df):
-                    df['SEX'] = df['SEX'].astype(int)
-                    df['EDUCATION'] = df['EDUCATION'].astype(int)
-                    df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-                    return df
+            preprocessor = model.named_steps['preprocessor']
+            classifier = model.named_steps['classifier']
+            X_transformed = preprocessor.transform(df)
 
-                df = preprocess_input_data(df)
-                sample_data = df[:5]  # Reduce sample size for speed
+            feature_names = expected_columns  # Use original feature names
+            sample_data = X_transformed[:5]  # Reduce sample size for speed
 
-            explainer = shap.TreeExplainer(model)
+            explainer = shap.TreeExplainer(classifier)
             shap_values = explainer.shap_values(sample_data)
 
             # Ensure correct shape for SHAP values
@@ -192,8 +179,8 @@ elif app_mode == "📊 Feature Importance":
             shap_importance = np.array(shap_importance).flatten()
 
             # Ensure dimensions match
-            min_len = min(len(expected_columns), len(shap_importance))
-            feature_names = expected_columns[:min_len]
+            min_len = min(len(feature_names), len(shap_importance))
+            feature_names = feature_names[:min_len]
             shap_importance = shap_importance[:min_len]
 
             # Create DataFrame for feature importance
