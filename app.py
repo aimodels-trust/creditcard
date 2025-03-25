@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import joblib
+import gdown
 import os
 import numpy as np
 import shap
@@ -10,16 +11,21 @@ from sklearn.pipeline import Pipeline
 # Step 0: Set page configuration (must be the first Streamlit command)
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 
-# Step 1: Load the trained model
+# Step 1: Download the model from Google Drive
+model_url = "https://drive.google.com/uc?id=11_IDWfsV9f-p57Cjy9h1ar1I3TB1SBby"
+model_path = "credit_default_model.pkl"
+
+if not os.path.exists(model_path):
+    gdown.download(model_url, model_path, quiet=False)
+
+# Step 2: Load the trained model
 @st.cache_resource
 def load_model():
-    model = joblib.load("credit_default_model.pkl")
-    print("Model type:", type(model))
-    return model
+    return joblib.load(model_path)
 
 model = load_model()
 
-# Step 2: Define Streamlit app
+# Step 3: Define Streamlit app
 st.title("💳 Credit Card Default Prediction with Explainability")
 
 # Sidebar Navigation
@@ -33,6 +39,14 @@ expected_columns = [
     'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
     'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
 ]
+
+# Data privacy assurance
+st.sidebar.markdown("### Data Privacy")
+st.sidebar.write("Your data is not stored or shared. All computations are done locally on your device.")
+
+# Model transparency
+st.sidebar.markdown("### About the Model")
+st.sidebar.write("This model predicts the likelihood of credit card default based on user-provided data. It uses SHAP for explainability.")
 
 if app_mode == "🏠 Home":
     st.write("### Predict Credit Card Default")
@@ -78,15 +92,6 @@ if app_mode == "🏠 Home":
                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
                                  columns=expected_columns)
 
-        # Preprocess the data manually
-        def preprocess_input_data(df):
-            df['SEX'] = df['SEX'].astype(int)
-            df['EDUCATION'] = df['EDUCATION'].astype(int)
-            df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-            return df
-
-        user_data = preprocess_input_data(user_data)
-
         # Make predictions
         prediction = model.predict(user_data)
         probability = model.predict_proba(user_data)[:, 1]
@@ -97,8 +102,9 @@ if app_mode == "🏠 Home":
 
         # Local SHAP explanation
         try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(user_data)
+            explainer = shap.TreeExplainer(model.named_steps['classifier'])
+            X_transformed = model.named_steps['preprocessor'].transform(user_data)
+            shap_values = explainer.shap_values(X_transformed)
 
             # Ensure correct shape for SHAP values
             if isinstance(shap_values, list):  # Binary classification
@@ -106,7 +112,7 @@ if app_mode == "🏠 Home":
 
             st.write("#### Local Explanation (SHAP)")
             shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
-                            shap_values, user_data.iloc[0, :], matplotlib=True, show=False)
+                            shap_values, X_transformed[0], matplotlib=True, show=False)
             st.pyplot(bbox_inches='tight')
             plt.clf()
         except Exception as e:
@@ -124,11 +130,9 @@ if app_mode == "🏠 Home":
             st.stop()
 
         # Preprocess the data
-        df = preprocess_input_data(df)
-
-        # Make predictions
-        predictions = model.predict(df)
-        probabilities = model.predict_proba(df)[:, 1]
+        X_transformed = model.named_steps['preprocessor'].transform(df)
+        predictions = model.named_steps['classifier'].predict(X_transformed)
+        probabilities = model.named_steps['classifier'].predict_proba(X_transformed)[:, 1]
 
         df['Default_Risk'] = predictions
         df['Probability'] = probabilities
@@ -149,18 +153,12 @@ elif app_mode == "📊 Feature Importance":
             st.stop()
 
         # Preprocess the data
-        def preprocess_input_data(df):
-            df['SEX'] = df['SEX'].astype(int)
-            df['EDUCATION'] = df['EDUCATION'].astype(int)
-            df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-            return df
-
-        df = preprocess_input_data(df)
+        X_transformed = model.named_steps['preprocessor'].transform(df)
 
         # Compute SHAP values
         try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(df)
+            explainer = shap.TreeExplainer(model.named_steps['classifier'])
+            shap_values = explainer.shap_values(X_transformed)
 
             # Ensure correct shape for SHAP values
             correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
@@ -193,7 +191,7 @@ elif app_mode == "📊 Feature Importance":
 
             # SHAP Summary Plot
             st.write("### 📊 SHAP Summary Plot")
-            shap.summary_plot(correct_shap_values, df, feature_names=feature_names, show=False)
+            shap.summary_plot(correct_shap_values, X_transformed, feature_names=feature_names, show=False)
             plt.savefig("shap_summary.png", bbox_inches='tight')
             st.image("shap_summary.png")
         except Exception as e:
