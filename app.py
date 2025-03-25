@@ -6,13 +6,12 @@ import os
 import numpy as np
 import shap
 import matplotlib.pyplot as plt
-from sklearn.pipeline import Pipeline
 
 # Step 0: Set page configuration (must be the first Streamlit command)
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 
 # Step 1: Download the model from Google Drive
-model_url = "https://drive.google.com/uc?id=11_IDWfsV9f-p57Cjy9h1ar1I3TB1SBby"
+model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
 model_path = "credit_default_model.pkl"
 
 if not os.path.exists(model_path):
@@ -92,7 +91,16 @@ if app_mode == "🏠 Home":
                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
                                  columns=expected_columns)
 
-        # Make predictions using the pipeline
+        # Preprocess the data manually
+        def preprocess_input_data(df):
+            df['SEX'] = df['SEX'].astype(int)
+            df['EDUCATION'] = df['EDUCATION'].astype(int)
+            df['MARRIAGE'] = df['MARRIAGE'].astype(int)
+            return df
+
+        user_data = preprocess_input_data(user_data)
+
+        # Make predictions
         try:
             prediction = model.predict(user_data)
             probability = model.predict_proba(user_data)[:, 1]
@@ -105,9 +113,8 @@ if app_mode == "🏠 Home":
 
         # Local SHAP explanation
         try:
-            explainer = shap.TreeExplainer(model.named_steps['classifier'])
-            X_transformed = model.named_steps['preprocessor'].transform(user_data)
-            shap_values = explainer.shap_values(X_transformed)
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(user_data)
 
             # Ensure correct shape for SHAP values
             if isinstance(shap_values, list):  # Binary classification
@@ -115,7 +122,7 @@ if app_mode == "🏠 Home":
 
             st.write("#### Local Explanation (SHAP)")
             shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
-                            shap_values, X_transformed[0], matplotlib=True, show=False)
+                            shap_values, user_data.iloc[0, :], matplotlib=True, show=False)
             st.pyplot(bbox_inches='tight')
             plt.clf()
         except Exception as e:
@@ -132,7 +139,10 @@ if app_mode == "🏠 Home":
             st.error(f"Uploaded CSV format is incorrect! Expected {len(expected_columns)} columns, got {df.shape[1]}.")
             st.stop()
 
-        # Preprocess the data and make predictions
+        # Preprocess the data
+        df = preprocess_input_data(df)
+
+        # Make predictions
         try:
             predictions = model.predict(df)
             probabilities = model.predict_proba(df)[:, 1]
@@ -158,12 +168,12 @@ elif app_mode == "📊 Feature Importance":
             st.stop()
 
         # Preprocess the data
-        try:
-            X_transformed = model.named_steps['preprocessor'].transform(df)
+        df = preprocess_input_data(df)
 
-            # Compute SHAP values
-            explainer = shap.TreeExplainer(model.named_steps['classifier'])
-            shap_values = explainer.shap_values(X_transformed)
+        # Compute SHAP values
+        try:
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(df)
 
             # Ensure correct shape for SHAP values
             correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
@@ -196,7 +206,7 @@ elif app_mode == "📊 Feature Importance":
 
             # SHAP Summary Plot
             st.write("### 📊 SHAP Summary Plot")
-            shap.summary_plot(correct_shap_values, X_transformed, feature_names=feature_names, show=False)
+            shap.summary_plot(correct_shap_values, df, feature_names=feature_names, show=False)
             plt.savefig("shap_summary.png", bbox_inches='tight')
             st.image("shap_summary.png")
         except Exception as e:
