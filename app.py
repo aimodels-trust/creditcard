@@ -6,26 +6,23 @@ import os
 import numpy as np
 import shap
 import matplotlib.pyplot as plt
-from sklearn.pipeline import Pipeline
 
-# Step 0: Set page configuration (must be the first Streamlit command)
-st.set_page_config(page_title="Credit Default Prediction", layout="wide")
-
-# Step 1: Download the model from Google Drive
-model_url = "https://drive.google.com/uc?id=1en2IPj_z6OivZCBNDXepX-EAiZLvCILE"
+# Step 0: Download the model from Google Drive
+model_url = "https://drive.google.com/uc?id=1x4Vmmr6Ip-msXGQpeIa-WFkpyD5aECOo"
 model_path = "credit_default_model.pkl"
 
 if not os.path.exists(model_path):
+    print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Step 2: Load the trained model
+# Step 1: Load the trained model
 @st.cache_resource
 def load_model():
     return joblib.load(model_path)
 
 model = load_model()
 
-# Step 3: Define Streamlit app
+# Step 2: Define Streamlit app
 st.title("💳 Credit Card Default Prediction with Explainability")
 
 # Sidebar Navigation
@@ -95,38 +92,28 @@ if app_mode == "🏠 Home":
                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
                                  columns=expected_columns)
         
-        # Preprocess and predict
-        preprocessor = model.named_steps['preprocessor']
-        classifier = model.named_steps['classifier']
-        X_transformed = preprocessor.transform(user_data)
-        prediction = classifier.predict(X_transformed)
-        probability = classifier.predict_proba(X_transformed)[:, 1]
+        # Check if the model is a Pipeline
+        if isinstance(model, Pipeline):
+            preprocessor = model.named_steps['preprocessor']
+            classifier = model.named_steps['classifier']
+            X_transformed = preprocessor.transform(user_data)
+            prediction = classifier.predict(X_transformed)
+            probability = classifier.predict_proba(X_transformed)[:, 1]
+        else:
+            # Preprocess manually if not a Pipeline
+            def preprocess_input_data(df):
+                df['SEX'] = df['SEX'].astype(int)
+                df['EDUCATION'] = df['EDUCATION'].astype(int)
+                df['MARRIAGE'] = df['MARRIAGE'].astype(int)
+                return df
+
+            user_data = preprocess_input_data(user_data)
+            prediction = model.predict(user_data)
+            probability = model.predict_proba(user_data)[:, 1]
 
         st.write("### Prediction Result")
         st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
         st.write(f"Probability of Default: {probability[0]:.2f}")
-
-        # Local SHAP explanation (removed force_plot)
-        explainer = shap.TreeExplainer(classifier)
-        shap_values = explainer.shap_values(X_transformed)
-
-        # Check if shap_values is a list (binary classification)
-        if isinstance(shap_values, list):
-            # For binary classification, use shap_values[1] for the positive class
-            shap_values = shap_values[1]
-            base_value = explainer.expected_value[1]
-        else:
-            # For non-binary cases, use shap_values directly
-            base_value = explainer.expected_value
-
-        # Ensure the input data is in the correct format
-        features = user_data.iloc[0:1, :]  # Extract the first row of user data as a DataFrame
-
-        # Generate the SHAP force plot (commented out)
-        # st.write("#### Local Explanation (SHAP)")
-        # shap.force_plot(base_value, shap_values[0], features, matplotlib=True, show=False)
-        # st.pyplot(bbox_inches='tight')
-        # plt.clf()
 
     # CSV upload functionality
     st.write("#### Upload a CSV File for Predictions")
@@ -138,11 +125,24 @@ if app_mode == "🏠 Home":
         if df.shape[1] != len(expected_columns):
             st.error("Uploaded CSV format is incorrect! Check the column count.")
         else:
-            preprocessor = model.named_steps['preprocessor']
-            classifier = model.named_steps['classifier']
-            X_transformed = preprocessor.transform(df)
-            predictions = classifier.predict(X_transformed)
-            probabilities = classifier.predict_proba(X_transformed)[:, 1]
+            # Check if the model is a Pipeline
+            if isinstance(model, Pipeline):
+                preprocessor = model.named_steps['preprocessor']
+                classifier = model.named_steps['classifier']
+                X_transformed = preprocessor.transform(df)
+                predictions = classifier.predict(X_transformed)
+                probabilities = classifier.predict_proba(X_transformed)[:, 1]
+            else:
+                # Preprocess manually if not a Pipeline
+                def preprocess_input_data(df):
+                    df['SEX'] = df['SEX'].astype(int)
+                    df['EDUCATION'] = df['EDUCATION'].astype(int)
+                    df['MARRIAGE'] = df['MARRIAGE'].astype(int)
+                    return df
+
+                df = preprocess_input_data(df)
+                predictions = model.predict(df)
+                probabilities = model.predict_proba(df)[:, 1]
 
             df['Default_Risk'] = predictions
             df['Probability'] = probabilities
@@ -154,54 +154,3 @@ elif app_mode == "📊 Feature Importance":
     st.write("### 🔍 Feature Importance & Explainability")
 
     uploaded_file = st.file_uploader("📂 Upload CSV for SHAP Analysis", type=["csv"])
-
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
-
-        if df.shape[1] != len(expected_columns):
-            st.error("Uploaded CSV format is incorrect! Check the column count.")
-        else:
-            preprocessor = model.named_steps['preprocessor']
-            classifier = model.named_steps['classifier']
-            X_transformed = preprocessor.transform(df)
-
-            feature_names = expected_columns  # Use original feature names
-            sample_data = X_transformed[:5]  # Reduce sample size for speed
-
-            explainer = shap.TreeExplainer(classifier)
-            shap_values = explainer.shap_values(sample_data)
-
-            # Ensure correct shape for SHAP values
-            correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
-            shap_importance = np.abs(correct_shap_values).mean(axis=0)
-
-            # Convert to 1D array
-            shap_importance = np.array(shap_importance).flatten()
-
-            # Ensure dimensions match
-            min_len = min(len(feature_names), len(shap_importance))
-            feature_names = feature_names[:min_len]
-            shap_importance = shap_importance[:min_len]
-
-            # Create DataFrame for feature importance
-            importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
-            importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
-
-            # Display results
-            st.write("### 🔥 Top 10 Most Important Features")
-            st.dataframe(importance_df)
-
-            # Plot bar chart
-            fig, ax = plt.subplots(figsize=(8, 5))
-            ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
-            ax.set_xlabel("SHAP Importance")
-            ax.set_ylabel("Feature")
-            ax.set_title("📊 Feature Importance")
-            plt.gca().invert_yaxis()
-            st.pyplot(fig)
-
-            # SHAP Summary Plot
-            st.write("### 📊 SHAP Summary Plot")
-            shap.summary_plot(correct_shap_values, sample_data, feature_names=feature_names, show=False)
-            plt.savefig("shap_summary.png", bbox_inches='tight')
-            st.image("shap_summary.png")
