@@ -106,27 +106,19 @@ if app_mode == "🏠 Home":
         st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
         st.write(f"Probability of Default: {probability[0]:.2f}")
 
-        # Local SHAP explanation (removed force_plot)
+        # Local SHAP explanation
         explainer = shap.TreeExplainer(classifier)
         shap_values = explainer.shap_values(X_transformed)
 
         # Check if shap_values is a list (binary classification)
         if isinstance(shap_values, list):
-            # For binary classification, use shap_values[1] for the positive class
-            shap_values = shap_values[1]
-            base_value = explainer.expected_value[1]
-        else:
-            # For non-binary cases, use shap_values directly
-            base_value = explainer.expected_value
+            shap_values = shap_values[1]  # Use positive class for binary classification
 
-        # Ensure the input data is in the correct format
-        features = user_data.iloc[0:1, :]  # Extract the first row of user data as a DataFrame
-
-        # Generate the SHAP force plot (commented out)
-        # st.write("#### Local Explanation (SHAP)")
-        # shap.force_plot(base_value, shap_values[0], features, matplotlib=True, show=False)
-        # st.pyplot(bbox_inches='tight')
-        # plt.clf()
+        st.write("#### Local Explanation (SHAP)")
+        shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
+                        shap_values, user_data.iloc[0, :], matplotlib=True, show=False)
+        st.pyplot(bbox_inches='tight')
+        plt.clf()
 
     # CSV upload functionality
     st.write("#### Upload a CSV File for Predictions")
