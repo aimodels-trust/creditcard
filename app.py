@@ -11,8 +11,7 @@ from sklearn.pipeline import Pipeline
 # Step 0: Set page configuration (must be the first Streamlit command)
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 import gdown
-model_url = "https://drive.google.com/uc?id=1lUD23krOBBwxVsZ6Cc0W0qqbN12V1ZDG
-"
+model_url = "https://drive.google.com/uc?id=1lUD23krOBBwxVsZ6Cc0W0qqbN12V1ZDG"
 model_path = "credit_default_model.pkl"
 
 
