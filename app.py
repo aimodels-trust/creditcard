@@ -205,4 +205,19 @@ elif app_mode == "📊 Feature Importance":
             shap_importance = np.array(shap_importance).flatten()
 
             # Ensure dimensions match
-            min_len = min(len(expected_columns), len(sh
+            min_len = min(len(expected_columns), len(shap_importance))
+            feature_importance_df = pd.DataFrame({
+                'Feature': expected_columns[:min_len],
+                'SHAP Importance': shap_importance[:min_len]
+            }).sort_values(by="SHAP Importance", ascending=False)
+
+            # Display feature importance
+            st.write("#### Feature Importance (SHAP Values)")
+            st.bar_chart(feature_importance_df.set_index("Feature"))
+
+            # SHAP summary plot
+            st.write("#### SHAP Summary Plot")
+            shap.summary_plot(correct_shap_values, X_transformed, feature_names=expected_columns, show=False)
+            st.pyplot(bbox_inches='tight')
+            plt.clf()
+
