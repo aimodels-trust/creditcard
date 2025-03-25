@@ -6,7 +6,6 @@ import os
 import numpy as np
 import shap
 import matplotlib.pyplot as plt
-from sklearn.pipeline import Pipeline
 
 # Step 0: Set page configuration (must be the first Streamlit command)
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
@@ -21,7 +20,9 @@ if not os.path.exists(model_path):
 # Step 2: Load the trained model
 @st.cache_resource
 def load_model():
-    return joblib.load(model_path)
+    model = joblib.load(model_path)
+    print("Model type:", type(model))
+    return model
 
 model = load_model()
 
@@ -46,7 +47,7 @@ st.sidebar.write("Your data is not stored or shared. All computations are done l
 
 # Model transparency
 st.sidebar.markdown("### About the Model")
-st.sidebar.write("This model predicts the likelihood of credit card default based on user-provided data. It was trained on a dataset of credit card users and uses SHAP for explainability.")
+st.sidebar.write("This model predicts the likelihood of credit card default based on user-provided data. It uses SHAP for explainability.")
 
 if app_mode == "🏠 Home":
     st.write("### Predict Credit Card Default")
@@ -61,7 +62,6 @@ if app_mode == "🏠 Home":
         education = st.selectbox("Education (EDUCATION)", options=[1, 2, 3, 4], format_func=lambda x: {1: "Graduate", 2: "University", 3: "High School", 4: "Others"}[x])
         marriage = st.selectbox("Marriage (MARRIAGE)", options=[1, 2, 3], format_func=lambda x: {1: "Married", 2: "Single", 3: "Others"}[x])
 
-        # Add inputs for PAY_0 to PAY_6
         pay_0 = st.number_input("Repayment Status (PAY_0)", min_value=-2, max_value=8)
         pay_2 = st.number_input("Repayment Status (PAY_2)", min_value=-2, max_value=8)
         pay_3 = st.number_input("Repayment Status (PAY_3)", min_value=-2, max_value=8)
@@ -69,7 +69,6 @@ if app_mode == "🏠 Home":
         pay_5 = st.number_input("Repayment Status (PAY_5)", min_value=-2, max_value=8)
         pay_6 = st.number_input("Repayment Status (PAY_6)", min_value=-2, max_value=8)
 
-        # Add inputs for BILL_AMT1 to BILL_AMT6
         bill_amt1 = st.number_input("Bill Amount 1 (BILL_AMT1)", min_value=0)
         bill_amt2 = st.number_input("Bill Amount 2 (BILL_AMT2)", min_value=0)
         bill_amt3 = st.number_input("Bill Amount 3 (BILL_AMT3)", min_value=0)
@@ -77,7 +76,6 @@ if app_mode == "🏠 Home":
         bill_amt5 = st.number_input("Bill Amount 5 (BILL_AMT5)", min_value=0)
         bill_amt6 = st.number_input("Bill Amount 6 (BILL_AMT6)", min_value=0)
 
-        # Add inputs for PAY_AMT1 to PAY_AMT6
         pay_amt1 = st.number_input("Payment Amount 1 (PAY_AMT1)", min_value=0)
         pay_amt2 = st.number_input("Payment Amount 2 (PAY_AMT2)", min_value=0)
         pay_amt3 = st.number_input("Payment Amount 3 (PAY_AMT3)", min_value=0)
@@ -95,24 +93,18 @@ if app_mode == "🏠 Home":
                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
                                  columns=expected_columns)
 
-        # Check if the model is a Pipeline
-        if isinstance(model, Pipeline):  # Now Pipeline is imported
-            preprocessor = model.named_steps['preprocessor']
-            classifier = model.named_steps['classifier']
-            X_transformed = preprocessor.transform(user_data)
-            prediction = classifier.predict(X_transformed)
-            probability = classifier.predict_proba(X_transformed)[:, 1]
-        else:
-            # Preprocess manually if not a Pipeline
-            def preprocess_input_data(df):
-                df['SEX'] = df['SEX'].astype(int)
-                df['EDUCATION'] = df['EDUCATION'].astype(int)
-                df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-                return df
+        # Preprocess the data manually
+        def preprocess_input_data(df):
+            df['SEX'] = df['SEX'].astype(int)
+            df['EDUCATION'] = df['EDUCATION'].astype(int)
+            df['MARRIAGE'] = df['MARRIAGE'].astype(int)
+            return df
 
-            user_data = preprocess_input_data(user_data)
-            prediction = model.predict(user_data)
-            probability = model.predict_proba(user_data)[:, 1]
+        user_data = preprocess_input_data(user_data)
+
+        # Make predictions
+        prediction = model.predict(user_data)
+        probability = model.predict_proba(user_data)[:, 1]
 
         st.write("### Prediction Result")
         st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
@@ -122,9 +114,9 @@ if app_mode == "🏠 Home":
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(user_data)
 
-        # Check if shap_values is a list (binary classification)
-        if isinstance(shap_values, list):
-            shap_values = shap_values[1]  # Use positive class for binary classification
+        # Ensure correct shape for SHAP values
+        if isinstance(shap_values, list):  # Binary classification
+            shap_values = shap_values[1]  # Use SHAP values for the positive class
 
         st.write("#### Local Explanation (SHAP)")
         shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
@@ -140,32 +132,21 @@ if app_mode == "🏠 Home":
         df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
         if df.shape[1] != len(expected_columns):
-            st.error("Uploaded CSV format is incorrect! Check the column count.")
-        else:
-            # Check if the model is a Pipeline
-            if isinstance(model, Pipeline):  # Now Pipeline is imported
-                preprocessor = model.named_steps['preprocessor']
-                classifier = model.named_steps['classifier']
-                X_transformed = preprocessor.transform(df)
-                predictions = classifier.predict(X_transformed)
-                probabilities = classifier.predict_proba(X_transformed)[:, 1]
-            else:
-                # Preprocess manually if not a Pipeline
-                def preprocess_input_data(df):
-                    df['SEX'] = df['SEX'].astype(int)
-                    df['EDUCATION'] = df['EDUCATION'].astype(int)
-                    df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-                    return df
+            st.error(f"Uploaded CSV format is incorrect! Expected {len(expected_columns)} columns, got {df.shape[1]}.")
+            st.stop()
 
-                df = preprocess_input_data(df)
-                predictions = model.predict(df)
-                probabilities = model.predict_proba(df)[:, 1]
+        # Preprocess the data
+        df = preprocess_input_data(df)
 
-            df['Default_Risk'] = predictions
-            df['Probability'] = probabilities
+        # Make predictions
+        predictions = model.predict(df)
+        probabilities = model.predict_proba(df)[:, 1]
 
-            st.write("### Prediction Results")
-            st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+        df['Default_Risk'] = predictions
+        df['Probability'] = probabilities
+
+        st.write("### Prediction Results")
+        st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
 
 elif app_mode == "📊 Feature Importance":
     st.write("### 🔍 Feature Importance & Explainability")
@@ -176,58 +157,47 @@ elif app_mode == "📊 Feature Importance":
         df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
 
         if df.shape[1] != len(expected_columns):
-            st.error("Uploaded CSV format is incorrect! Check the column count.")
-        else:
-            # Check if the model is a Pipeline
-            if isinstance(model, Pipeline):  # Now Pipeline is imported
-                preprocessor = model.named_steps['preprocessor']
-                classifier = model.named_steps['classifier']
-                X_transformed = preprocessor.transform(df)
-            else:
-                # Preprocess manually if not a Pipeline
-                def preprocess_input_data(df):
-                    df['SEX'] = df['SEX'].astype(int)
-                    df['EDUCATION'] = df['EDUCATION'].astype(int)
-                    df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-                    return df
+            st.error(f"Uploaded CSV format is incorrect! Expected {len(expected_columns)} columns, got {df.shape[1]}.")
+            st.stop()
 
-                df = preprocess_input_data(df)
-                X_transformed = df
+        # Preprocess the data
+        df = preprocess_input_data(df)
 
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(X_transformed)
+        # Compute SHAP values
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(df)
 
-            # Ensure correct shape for SHAP values
-            correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
-            shap_importance = np.abs(correct_shap_values).mean(axis=0)
+        # Ensure correct shape for SHAP values
+        correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+        shap_importance = np.abs(correct_shap_values).mean(axis=0)
 
-            # Convert to 1D array
-            shap_importance = np.array(shap_importance).flatten()
+        # Convert to 1D array
+        shap_importance = np.array(shap_importance).flatten()
 
-            # Ensure dimensions match
-            min_len = min(len(expected_columns), len(shap_importance))
-            feature_names = expected_columns[:min_len]
-            shap_importance = shap_importance[:min_len]
+        # Ensure dimensions match
+        min_len = min(len(expected_columns), len(shap_importance))
+        feature_names = expected_columns[:min_len]
+        shap_importance = shap_importance[:min_len]
 
-            # Create DataFrame for feature importance
-            importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
-            importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
+        # Create DataFrame for feature importance
+        importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
+        importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
 
-            # Display results
-            st.write("### 🔥 Top 10 Most Important Features")
-            st.dataframe(importance_df)
+        # Display results
+        st.write("### 🔥 Top 10 Most Important Features")
+        st.dataframe(importance_df)
 
-            # Plot bar chart
-            fig, ax = plt.subplots(figsize=(8, 5))
-            ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
-            ax.set_xlabel("SHAP Importance")
-            ax.set_ylabel("Feature")
-            ax.set_title("📊 Feature Importance")
-            plt.gca().invert_yaxis()
-            st.pyplot(fig)
+        # Plot bar chart
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
+        ax.set_xlabel("SHAP Importance")
+        ax.set_ylabel("Feature")
+        ax.set_title("📊 Feature Importance")
+        plt.gca().invert_yaxis()
+        st.pyplot(fig)
 
-            # SHAP Summary Plot
-            st.write("### 📊 SHAP Summary Plot")
-            shap.summary_plot(correct_shap_values, X_transformed, feature_names=feature_names, show=False)
-            plt.savefig("shap_summary.png", bbox_inches='tight')
-            st.image("shap_summary.png")
+        # SHAP Summary Plot
+        st.write("### 📊 SHAP Summary Plot")
+        shap.summary_plot(correct_shap_values, df, feature_names=feature_names, show=False)
+        plt.savefig("shap_summary.png", bbox_inches='tight')
+        st.image("shap_summary.png")
