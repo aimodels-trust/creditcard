@@ -11,18 +11,9 @@ from sklearn.pipeline import Pipeline
 # Step 0: Set page configuration (must be the first Streamlit command)
 st.set_page_config(page_title="Credit Default Prediction", layout="wide")
 import gdown
-
-# Google Drive file ID (extracted from the link)
-file_id = "1jYYyCCOPzYP00BGIg9_EA2FFLqHBteI0"
-
-# Construct the direct download URL
-model_url = f"https://drive.google.com/uc?id={file_id}"
-
-# Define the local file path
+model_url = "https://drive.google.com/uc?id=1lUD23krOBBwxVsZ6Cc0W0qqbN12V1ZDG
+"
 model_path = "credit_default_model.pkl"
-
-# Download the file
-gdown.download(model_url, model_path, quiet=False)
 
 
 
