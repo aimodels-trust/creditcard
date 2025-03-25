@@ -106,7 +106,7 @@ if app_mode == "🏠 Home":
         st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
         st.write(f"Probability of Default: {probability[0]:.2f}")
 
-        # Local SHAP explanation
+        # Local SHAP explanation (removed force_plot)
         explainer = shap.TreeExplainer(classifier)
         shap_values = explainer.shap_values(X_transformed)
 
@@ -122,11 +122,11 @@ if app_mode == "🏠 Home":
         # Ensure the input data is in the correct format
         features = user_data.iloc[0:1, :]  # Extract the first row of user data as a DataFrame
 
-        # Generate the SHAP force plot
-        st.write("#### Local Explanation (SHAP)")
-        shap.force_plot(base_value, shap_values[0], features, matplotlib=True, show=False)
-        st.pyplot(bbox_inches='tight')
-        plt.clf()
+        # Generate the SHAP force plot (commented out)
+        # st.write("#### Local Explanation (SHAP)")
+        # shap.force_plot(base_value, shap_values[0], features, matplotlib=True, show=False)
+        # st.pyplot(bbox_inches='tight')
+        # plt.clf()
 
     # CSV upload functionality
     st.write("#### Upload a CSV File for Predictions")
