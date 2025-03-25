@@ -120,11 +120,11 @@ if app_mode == "🏠 Home":
             base_value = explainer.expected_value
 
         # Ensure the input data is in the correct format
-        features = user_data.iloc[0, :]  # Extract the first row of user data
+        features = user_data.iloc[0:1, :]  # Extract the first row of user data as a DataFrame
 
         # Generate the SHAP force plot
         st.write("#### Local Explanation (SHAP)")
-        shap.force_plot(base_value, shap_values, features, matplotlib=True, show=False)
+        shap.force_plot(base_value, shap_values[0], features, matplotlib=True, show=False)
         st.pyplot(bbox_inches='tight')
         plt.clf()
 
