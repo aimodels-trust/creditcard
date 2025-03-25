@@ -7,38 +7,39 @@ import numpy as np
 import shap
 import matplotlib.pyplot as plt
 
-# Step 0: Set page configuration (must be the first Streamlit command)
-st.set_page_config(page_title="Credit Default Prediction", layout="wide")
-
-# Step 1: Download the model from Google Drive
-model_url = "https://drive.google.com/uc?id=1b_7MNUEJjOvhq-eLSH3gu1scneUB5At9"
-
+# Step 0: Download the model from Google Drive
+model_url = "https://drive.google.com/uc?id=1x4Vmmr6Ip-msXGQpeIa-WFkpyD5aECOo"
 model_path = "credit_default_model.pkl"
 
 if not os.path.exists(model_path):
+    print("Downloading model from Google Drive...")
     gdown.download(model_url, model_path, quiet=False)
 
-# Step 2: Load the trained model
-@st.cache_resource
-def load_model():
-    return joblib.load(model_path)
+# Step 1: Load the trained model
+pipeline = joblib.load(model_path)
 
-model = load_model()
+# Check if the model is a Pipeline
+if hasattr(pipeline, 'named_steps'):
+    preprocessor = pipeline.named_steps.get('preprocessor', None)
+    model = pipeline.named_steps['classifier']
+else:
+    preprocessor = None
+    model = pipeline
 
-# Step 3: Define Streamlit app
+# Step 2: Define expected columns (based on training data)
+expected_columns = [
+    'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
+    'PAY_1', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
+    'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
+    'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
+]
+
+# Step 3: Streamlit App
 st.title("💳 Credit Card Default Prediction with Explainability")
 
 # Sidebar Navigation
 st.sidebar.title("Navigation")
 app_mode = st.sidebar.radio("Select Mode", ["🏠 Home", "📊 Feature Importance"])
-
-# Expected input features
-expected_columns = [
-    'LIMIT_BAL', 'SEX', 'EDUCATION', 'MARRIAGE', 'AGE',
-    'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
-    'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
-    'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6'
-]
 
 # Data privacy assurance
 st.sidebar.markdown("### Data Privacy")
@@ -51,7 +52,7 @@ st.sidebar.write("This model predicts the likelihood of credit card default base
 if app_mode == "🏠 Home":
     st.write("### Predict Credit Card Default")
 
-    # Manual input form
+    # Manual Input Form
     st.write("#### Enter Your Details")
     with st.form("user_input_form"):
         # Collect all 23 features
@@ -61,7 +62,7 @@ if app_mode == "🏠 Home":
         education = st.selectbox("Education (EDUCATION)", options=[1, 2, 3, 4], format_func=lambda x: {1: "Graduate", 2: "University", 3: "High School", 4: "Others"}[x])
         marriage = st.selectbox("Marriage (MARRIAGE)", options=[1, 2, 3], format_func=lambda x: {1: "Married", 2: "Single", 3: "Others"}[x])
 
-        pay_0 = st.number_input("Repayment Status (PAY_0)", min_value=-2, max_value=8)
+        pay_1 = st.number_input("Repayment Status (PAY_1)", min_value=-2, max_value=8)
         pay_2 = st.number_input("Repayment Status (PAY_2)", min_value=-2, max_value=8)
         pay_3 = st.number_input("Repayment Status (PAY_3)", min_value=-2, max_value=8)
         pay_4 = st.number_input("Repayment Status (PAY_4)", min_value=-2, max_value=8)
@@ -87,74 +88,35 @@ if app_mode == "🏠 Home":
     if submitted:
         # Create a DataFrame with all 23 features
         user_data = pd.DataFrame([[limit_bal, sex, education, marriage, age,
-                                   pay_0, pay_2, pay_3, pay_4, pay_5, pay_6,
+                                   pay_1, pay_2, pay_3, pay_4, pay_5, pay_6,
                                    bill_amt1, bill_amt2, bill_amt3, bill_amt4, bill_amt5, bill_amt6,
                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
                                  columns=expected_columns)
 
-        # Preprocess the data manually
-        def preprocess_input_data(df):
-            df['SEX'] = df['SEX'].astype(int)
-            df['EDUCATION'] = df['EDUCATION'].astype(int)
-            df['MARRIAGE'] = df['MARRIAGE'].astype(int)
-            return df
-
-        user_data = preprocess_input_data(user_data)
+        # Preprocess the data if necessary
+        if preprocessor:
+            user_data = preprocessor.transform(user_data)
 
         # Make predictions
-        try:
-            prediction = model.predict(user_data)
-            probability = model.predict_proba(user_data)[:, 1]
+        prediction = model.predict(user_data)[0]
+        probability = model.predict_proba(user_data)[0][1]
 
-            st.write("### Prediction Result")
-            st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
-            st.write(f"Probability of Default: {probability[0]:.2f}")
-        except Exception as e:
-            st.error(f"Prediction failed: {e}")
+        st.write("### Prediction Result")
+        st.write(f"Default Risk: {'High' if prediction == 1 else 'Low'}")
+        st.write(f"Probability of Default: {probability:.2f}")
 
-        # Local SHAP explanation
-        try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(user_data)
+        # Local SHAP Explanation
+        explainer = shap.Explainer(model)
+        shap_values = explainer.shap_values(user_data)
 
-            # Ensure correct shape for SHAP values
-            if isinstance(shap_values, list):  # Binary classification
-                shap_values = shap_values[1]  # Use SHAP values for the positive class
+        # Ensure correct shape for SHAP values
+        if isinstance(shap_values, list):  # For binary classification
+            shap_values = shap_values[1]  # Use SHAP values for the positive class
 
-            st.write("#### Local Explanation (SHAP)")
-            shap.force_plot(explainer.expected_value[1] if isinstance(shap_values, list) else explainer.expected_value, 
-                            shap_values, user_data.iloc[0, :], matplotlib=True, show=False)
-            st.pyplot(bbox_inches='tight')
-            plt.clf()
-        except Exception as e:
-            st.error(f"SHAP explanation failed: {e}")
-
-    # CSV upload functionality
-    st.write("#### Upload a CSV File for Predictions")
-    uploaded_file = st.file_uploader("📂 Upload CSV", type=["csv"])
-
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
-
-        if df.shape[1] != len(expected_columns):
-            st.error(f"Uploaded CSV format is incorrect! Expected {len(expected_columns)} columns, got {df.shape[1]}.")
-            st.stop()
-
-        # Preprocess the data
-        df = preprocess_input_data(df)
-
-        # Make predictions
-        try:
-            predictions = model.predict(df)
-            probabilities = model.predict_proba(df)[:, 1]
-
-            df['Default_Risk'] = predictions
-            df['Probability'] = probabilities
-
-            st.write("### Prediction Results")
-            st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
-        except Exception as e:
-            st.error(f"Batch prediction failed: {e}")
+        st.write("### Individual Prediction Explanation")
+        fig, ax = plt.subplots()
+        shap.waterfall_plot(shap.Explanation(values=shap_values[0], base_values=explainer.expected_value[1], data=user_data.iloc[0]), max_display=10, show=False)
+        st.pyplot(fig)
 
 elif app_mode == "📊 Feature Importance":
     st.write("### 🔍 Feature Importance & Explainability")
@@ -162,53 +124,49 @@ elif app_mode == "📊 Feature Importance":
     uploaded_file = st.file_uploader("📂 Upload CSV for SHAP Analysis", type=["csv"])
 
     if uploaded_file:
-        df = pd.read_csv(uploaded_file, header=None, names=expected_columns)
+        df = pd.read_csv(uploaded_file)
 
-        if df.shape[1] != len(expected_columns):
-            st.error(f"Uploaded CSV format is incorrect! Expected {len(expected_columns)} columns, got {df.shape[1]}.")
+        # Ensure only required columns are used
+        missing_cols = [col for col in expected_columns if col not in df.columns]
+        if missing_cols:
+            st.error(f"Missing columns in the uploaded file: {missing_cols}")
             st.stop()
 
-        # Preprocess the data
-        df = preprocess_input_data(df)
+        # Add missing columns with default values
+        for col in expected_columns:
+            if col not in df.columns:
+                df[col] = 0
+
+        # Reorder columns to match the expected order
+        df = df[expected_columns]
+
+        # Preprocess the data if necessary
+        if preprocessor:
+            df = preprocessor.transform(df)
 
         # Compute SHAP values
-        try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(df)
+        explainer = shap.Explainer(model)
+        shap_values = explainer.shap_values(df)
 
-            # Ensure correct shape for SHAP values
-            correct_shap_values = shap_values[1] if isinstance(shap_values, list) else shap_values
-            shap_importance = np.abs(correct_shap_values).mean(axis=0)
+        # Ensure correct shape for SHAP values
+        if isinstance(shap_values, list):  # For binary classification
+            shap_values = shap_values[1]  # Use SHAP values for the positive class
 
-            # Convert to 1D array
-            shap_importance = np.array(shap_importance).flatten()
+        # Calculate feature importance
+        feature_importance = np.abs(shap_values).mean(axis=0)
+        top_features = pd.DataFrame({
+            'Feature': expected_columns,
+            'Importance': feature_importance
+        }).sort_values(by="Importance", ascending=False).head(10)
 
-            # Ensure dimensions match
-            min_len = min(len(expected_columns), len(shap_importance))
-            feature_names = expected_columns[:min_len]
-            shap_importance = shap_importance[:min_len]
+        st.write("### Top 10 Most Important Features")
+        st.dataframe(top_features)
 
-            # Create DataFrame for feature importance
-            importance_df = pd.DataFrame({'Feature': feature_names, 'SHAP Importance': shap_importance})
-            importance_df = importance_df.sort_values(by="SHAP Importance", ascending=False).head(10)
+        # Select a specific row for local explanations
+        index = st.number_input("Select a row index for individual explanation", min_value=0, max_value=len(df)-1, value=0)
+        st.write("### Individual Prediction Explanation")
 
-            # Display results
-            st.write("### 🔥 Top 10 Most Important Features")
-            st.dataframe(importance_df)
-
-            # Plot bar chart
-            fig, ax = plt.subplots(figsize=(8, 5))
-            ax.barh(importance_df["Feature"], importance_df["SHAP Importance"], color="royalblue")
-            ax.set_xlabel("SHAP Importance")
-            ax.set_ylabel("Feature")
-            ax.set_title("📊 Feature Importance")
-            plt.gca().invert_yaxis()
-            st.pyplot(fig)
-
-            # SHAP Summary Plot
-            st.write("### 📊 SHAP Summary Plot")
-            shap.summary_plot(correct_shap_values, df, feature_names=feature_names, show=False)
-            plt.savefig("shap_summary.png", bbox_inches='tight')
-            st.image("shap_summary.png")
-        except Exception as e:
-            st.error(f"SHAP analysis failed: {e}")
+        # Waterfall Plot
+        fig, ax = plt.subplots()
+        shap.waterfall_plot(shap.Explanation(values=shap_values[index], base_values=explainer.expected_value[1], data=df.iloc[index]), max_display=10, show=False)
+        st.pyplot(fig)
