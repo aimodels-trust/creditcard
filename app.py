@@ -92,13 +92,16 @@ if app_mode == "🏠 Home":
                                    pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6]],
                                  columns=expected_columns)
 
-        # Make predictions
-        prediction = model.predict(user_data)
-        probability = model.predict_proba(user_data)[:, 1]
+        # Make predictions using the pipeline
+        try:
+            prediction = model.predict(user_data)
+            probability = model.predict_proba(user_data)[:, 1]
 
-        st.write("### Prediction Result")
-        st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
-        st.write(f"Probability of Default: {probability[0]:.2f}")
+            st.write("### Prediction Result")
+            st.write(f"Default Risk: {'High' if prediction[0] == 1 else 'Low'}")
+            st.write(f"Probability of Default: {probability[0]:.2f}")
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
 
         # Local SHAP explanation
         try:
@@ -129,16 +132,18 @@ if app_mode == "🏠 Home":
             st.error(f"Uploaded CSV format is incorrect! Expected {len(expected_columns)} columns, got {df.shape[1]}.")
             st.stop()
 
-        # Preprocess the data
-        X_transformed = model.named_steps['preprocessor'].transform(df)
-        predictions = model.named_steps['classifier'].predict(X_transformed)
-        probabilities = model.named_steps['classifier'].predict_proba(X_transformed)[:, 1]
+        # Preprocess the data and make predictions
+        try:
+            predictions = model.predict(df)
+            probabilities = model.predict_proba(df)[:, 1]
 
-        df['Default_Risk'] = predictions
-        df['Probability'] = probabilities
+            df['Default_Risk'] = predictions
+            df['Probability'] = probabilities
 
-        st.write("### Prediction Results")
-        st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+            st.write("### Prediction Results")
+            st.dataframe(df[['LIMIT_BAL', 'AGE', 'SEX', 'EDUCATION', 'MARRIAGE', 'Default_Risk', 'Probability']])
+        except Exception as e:
+            st.error(f"Batch prediction failed: {e}")
 
 elif app_mode == "📊 Feature Importance":
     st.write("### 🔍 Feature Importance & Explainability")
@@ -153,10 +158,10 @@ elif app_mode == "📊 Feature Importance":
             st.stop()
 
         # Preprocess the data
-        X_transformed = model.named_steps['preprocessor'].transform(df)
-
-        # Compute SHAP values
         try:
+            X_transformed = model.named_steps['preprocessor'].transform(df)
+
+            # Compute SHAP values
             explainer = shap.TreeExplainer(model.named_steps['classifier'])
             shap_values = explainer.shap_values(X_transformed)
 
